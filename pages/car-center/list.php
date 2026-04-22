@@ -31,12 +31,12 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
             <ul class="nav nav-tabs" id="bookingTypeTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link active font-weight-bolder text-primary" id="join-tab" data-toggle="tab" href="#waiting-tab" role="tab">
-                        <i data-feather='shopping-cart'></i> รอจัดรถ (Waiting for Car) <span class="badge badge-pill badge-light-primary ml-50" id="badge-join">(45 คน)</span>
+                        <i data-feather='shopping-cart'></i> รอจัดรถ (Waiting for Car) <span class="badge badge-pill badge-light-primary ml-50" id="">(45 คน)</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link font-weight-bolder text-warning" id="private-tab" data-toggle="tab" href="#assigned-tab" role="tab">
-                        <i data-feather='truck'></i> จัดรถแล้ว (Car Assigned) <span class="badge badge-pill badge-light-warning ml-50" id="badge-private">(8 คัน/24 คน)</span>
+                        <i data-feather='truck'></i> จัดรถแล้ว (Car Assigned) <span class="badge badge-pill badge-light-warning ml-50" id="">(8 คัน/24 คน)</span>
                     </a>
                 </li>
             </ul>
@@ -99,7 +99,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                 </div>
                             </div>
                             <div class="col-md-1 pt-1">
-                                <button type="button" class="btn btn-primary btn-block" id="btn-fetch-pool">
+                                <button type="button" class="btn btn-primary btn-block" id="btn-fetch-waiting">
                                     <i data-feather="search"></i> ค้นหา
                                 </button>
                             </div>
@@ -191,7 +191,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                 </div>
 
                                 <div class="form-group mb-1">
-                                    <select class="form-control" id="van-logistics" name="van_logistics">
+                                    <select class="form-control" id="van-waiting" name="van_waiting">
                                         <option>Select Cars ...</option>
                                         <?php
                                         $cars = $manageObj->showcars();
@@ -204,7 +204,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                     </select>
                                 </div>
                                 <div class="form-group mb-2">
-                                    <select class="form-control" id="driver-logistics" name="driver_logistics">
+                                    <select class="form-control" id="driver-waiting" name="driver_waiting">
                                         <option>Select Driver ...</option>
                                         <?php
                                         $drivers = $manageObj->showdrivers();
@@ -224,7 +224,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
 
                                 <div class="mt-auto">
                                     <button type="button" class="btn btn-success btn-block btn-lg mb-1 font-weight-bold shadow-sm" id="btn-assign-van">
-                                        <i data-feather="check"></i> CLOSE VAN V01 & ASSIGN
+                                        <i data-feather="check"></i> ASSIGN CAR
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary btn-block font-weight-bold">
                                         <i data-feather="x"></i> CLEAR SELECTION
@@ -249,5 +249,45 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
         <!-- list end -->
     </div>
     <!-- END: Content-->
+
+    <!------------------------------------------------------------------>
+    <!-- End Form Modal -->
+    <div class="modal fade text-left" id="modal-split-booking" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
+            <div class="modal-content border-primary">
+                <div class="modal-header bg-light-primary">
+                    <h5 class="modal-title text-primary"><i data-feather="scissors"></i> แบ่งกลุ่มลูกค้า (Split Booking)</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-2" role="alert">
+                        <div class="alert-body d-flex align-items-center">
+                            <i data-feather="info" class="mr-50"></i>
+                            <span>ลูกค้ากลุ่มนี้มี <b><span id="split-total-pax">18</span> คน</b> คุณต้องการแบ่งกลุ่มอย่างไร?</span>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="split-booking-id" value="">
+
+                    <div class="form-group">
+                        <label>กลุ่มที่ 1 (จำนวนคน)</label>
+                        <input type="number" class="form-control" id="split-group-1" min="1" placeholder="เช่น 9">
+                    </div>
+                    <div class="form-group">
+                        <label>กลุ่มที่ 2 (จำนวนคนที่เหลือ)</label>
+                        <input type="number" class="form-control" id="split-group-2" readonly style="background-color: #f8f8f8;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-primary" id="btn-confirm-split">ยืนยันการแบ่ง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!------------------------------------------------------------------>
+    <!-- End Form Modal -->
 
 </div>

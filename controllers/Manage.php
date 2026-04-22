@@ -1080,17 +1080,19 @@ class Manage extends DB
     }
 
     // ดึงข้อมูล Waiting Pool สำหรับหน้า Van Builder (พ่นออกเป็น JSON)
-    public function get_waiting_pool_bookings(string $travel_date, array $product_ids)
+    public function get_waiting_pool_bookings(string $travel_date, array $product_ids, array $zone_ids)
     {
         $in_clause = implode(',', array_map('intval', $product_ids));
         if (empty($in_clause)) return [];
+
+        $in_zone = implode(',', array_map('intval', $zone_ids));
 
         $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, 
                    BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time, 
                    HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
                    'pickup' as transfer_type,
                    BTYE.name as booking_type_name, CATE.transfer as category_transfer,
-                   BT.room_no, CUS.name as guest_name, NATION.name as nationality,
+                   BT.room_no, BT.hotel_pickup, CUS.name as guest_name, NATION.name as nationality,
                    BP.note as special_request, BO.updated_at,
                    (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
                    (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
@@ -1107,20 +1109,23 @@ class Manage extends DB
             LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
             LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
             LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
-            WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) 
-              AND BO.booking_status_id NOT IN (3, 4) AND BT.pickup_type IN (1, 3) 
+            WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
+
+        $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
+
+        $query .= " AND BO.booking_status_id NOT IN (3, 4) AND BT.pickup_type IN (1, 3) 
               AND BMT.id IS NULL AND BP.is_deleted = 0
             GROUP BY BT.id
 
             UNION ALL
 
             -- 2. ตะกร้าขากลับเปลี่ยนที่ (Dropoff)
-            SELECT BO.id, BT.id, BP.product_id, 
+            SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, 
                    BT.dropoff_id, ZONE_D.name_th, BT.end_pickup, 
-                   HOTELD.name_th, HOTELD.lat as latitude, HOTELD.lng as longitude,
+                   HOTELD.name, HOTELD.lat, HOTELD.lng,
                    'dropoff',
                    BTYE.name, CATE.transfer,
-                   BT.room_no, CUS.name, NATION.name,
+                   BT.room_no, BT.hotel_pickup, CUS.name, NATION.name,
                    BP.note, BO.updated_at,
                    (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
                    (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
@@ -1136,8 +1141,11 @@ class Manage extends DB
             LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
             LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
             LEFT JOIN dropoff_transfers DT ON BT.id = DT.booking_transfer_id
-            WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) 
-              AND BO.booking_status_id NOT IN (3, 4) 
+            WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
+
+        $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
+
+        $query .= " AND BO.booking_status_id NOT IN (3, 4) 
               AND (BT.pickup_id != BT.dropoff_id OR BT.hotel_pickup_id != BT.hotel_dropoff_id OR BT.pickup_type = 3)
               AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
               AND DT.id IS NULL AND BP.is_deleted = 0
@@ -1146,12 +1154,12 @@ class Manage extends DB
             UNION ALL
 
             -- 3. ตะกร้าค้างคืน (Overnight)
-            SELECT BO.id, BT.id, BP.product_id, 
+            SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, 
                    BT.dropoff_id, ZONE_D.name_th, BT.end_pickup, 
-                   HOTELD.name_th, HOTELD.lat as latitude, HOTELD.lng as longitude,
+                   HOTELD.name, HOTELD.lat, HOTELD.lng,
                    'overnight',
                    BTYE.name, CATE.transfer,
-                   BT.room_no, CUS.name, NATION.name,
+                   BT.room_no, BT.hotel_pickup, CUS.name, NATION.name,
                    BP.note, BO.updated_at,
                    (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
                    (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
@@ -1167,13 +1175,16 @@ class Manage extends DB
             LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
             LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
             LEFT JOIN overnight_transfers OT ON BT.id = OT.booking_transfer_id
-            WHERE BP.overnight = '$travel_date' AND BP.product_id IN ($in_clause) 
-              AND BO.booking_status_id NOT IN (3, 4) 
+            WHERE BP.overnight = '$travel_date' AND BP.product_id IN ($in_clause) ";
+
+        $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
+
+        $query .= " AND BO.booking_status_id NOT IN (3, 4) 
               AND OT.id IS NULL AND BP.is_deleted = 0
             GROUP BY BT.id
         ";
 
-        echo $query; // Debug: แสดง Query ที่จะรัน
+        // echo $query;
         $result = $this->connection->query($query);
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 

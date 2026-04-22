@@ -1,0 +1,85 @@
+[12-Nov-2025 21:31:03 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(3, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:31:05 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(4, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:32:18 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(7, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:32:18 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(8, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:33:12 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(11, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:34:50 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(13, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:35:13 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(14, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:35:34 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(15, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:35:50 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(16, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:36:08 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(17, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 21:36:51 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(18, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 22:03:47 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::update_language(): Argument #2 ($language) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/edit.php on line 37 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:188
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/edit.php(37): Guide->update_language(29, NULL, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 188
+[12-Nov-2025 22:03:49 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::update_language(): Argument #2 ($language) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/edit.php on line 37 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:188
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/edit.php(37): Guide->update_language(29, NULL, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 188
+[12-Nov-2025 22:05:13 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(35, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 22:06:09 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(36, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 22:06:10 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(37, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114
+[12-Nov-2025 22:06:58 Asia/Bangkok] PHP Fatal error:  Uncaught TypeError: Guide::insert_data_language(): Argument #2 ($languageArray) must be of type array, null given, called in /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php on line 33 and defined in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php:114
+Stack trace:
+#0 /home/customer/www/fantastic-tourmate.work/public_html/pages/guide/function/create.php(33): Guide->insert_data_language(38, NULL)
+#1 {main}
+  thrown in /home/customer/www/fantastic-tourmate.work/public_html/controllers/Guide.php on line 114

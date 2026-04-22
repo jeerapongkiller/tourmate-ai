@@ -44,7 +44,7 @@ require_once 'controllers/Auth.php';
                             <div class="card-body">
                                 <a href="javascript:void(0);" class="brand-logo">
                                     <img src="app-assets/images/logo/logo.png" width="50">
-                                    <h4 class="brand-text text-primary ml-1">LOVE<small class="d-block">ANDAMAN</small></h4>
+                                    <h4 class="brand-text text-primary ml-1">Tour Mate<small class="d-block">AI</small></h4>
                                 </a>
 
                                 <form class="auth-login-form mt-2" id="frmlogin" name="frmlogin" action="" method="POST" novalidate>

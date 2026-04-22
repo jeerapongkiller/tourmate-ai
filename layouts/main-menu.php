@@ -3,7 +3,7 @@
         <ul class="nav navbar-nav flex-row">
             <li class="nav-item mr-auto"><a class="navbar-brand" href="javascript:void(0);"><span class="brand-logo">
                         <img src="app-assets/images/logo/logo.png" height="24"></span>
-                    <h5 class="brand-text text-center">LOVE<small class="d-block" style="letter-spacing: 0px !important;">ANDAMAN</small></h5></span>
+                    <h5 class="brand-text text-center">Tour Mate<small class="d-block" style="letter-spacing: 0px !important;">AI</small></h5></span>
                 </a></li>
             <li class="nav-item nav-toggle"><a class="nav-link modern-nav-toggle pr-0" data-toggle="collapse"><i class="d-block d-xl-none text-primary toggle-icon font-medium-4" data-feather="x"></i><i class="d-none d-xl-block collapse-toggle-icon font-medium-4 text-primary" data-feather="disc" data-ticon="disc"></i></a></li>
         </ul>
@@ -51,6 +51,9 @@
                         <li class="nav-item" hidden><a class="d-flex align-items-center" href="./?pages=manage-boat/check-in"><i data-feather="circle"></i><span class="menu-item text-truncate" data-i18n="order-driver">Check IN</span></a>
                         </li>
                     </ul>
+                </li>
+                <li class="nav-item <?php echo ((strstr($_GET['pages'], "car-center/"))) ? 'active' : ''; ?>">
+                    <a class="d-flex align-items-center" href="./?pages=car-center/list"><i data-feather='truck'></i><span class="menu-title text-truncate" data-i18n="car-center">ศูนย์จัดรถ</span></a>
                 </li>
             <?php } ?>
 

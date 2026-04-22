@@ -153,6 +153,20 @@ class Manage extends DB
         return $data;
     }
 
+    public function showzones()
+    {
+        $query = "SELECT *
+            FROM zones
+            WHERE is_approved = 1
+        ";
+        $statement = $this->connection->prepare($query);
+        $statement->execute();
+        $result = $statement->get_result();
+        $data = $result->fetch_all(MYSQLI_ASSOC);
+
+        return $data;
+    }
+
     public function get_values(string $select, string $from, string $where, int $type)
     {
         $query = "SELECT $select
@@ -2200,4 +2214,11 @@ class Manage extends DB
     }
     // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // End Get Data Agent
+
+
+    // Start Get Data Cars Center
+    // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // End Get Data Cars Center
 }

@@ -128,20 +128,19 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                             <div class="tab-content">
                                 <div class="tab-pane fade show active" id="join-pool" role="tabpanel">
                                     <div class="table-responsive table-waiting-pool">
-                                        <table class="table table-hover table-bordered table-sm" id="table-join">
+                                        <table class="table table-hover table-bordered table-sm" id="table-join" style="color:black !important;">
                                             <thead class="thead-light text-center">
                                                 <tr>
                                                     <th>
                                                         <div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="checkAllJoin"><label class="custom-control-label" for="checkAllJoin"></label></div>
                                                     </th>
-                                                    <th>ETD</th>
-                                                    <th>Hotel (Zone)</th>
-                                                    <th>Room#</th>
-                                                    <th>Guest Name</th>
-                                                    <th>Pax</th>
-                                                    <th>V/C</th>
-                                                    <th>Programe</th>
-                                                    <th>Action</th>
+                                                    <th>โซน (เวลารับ)</th>
+                                                    <th>โรงแรม (ห้อง)</th>
+                                                    <th>ชื่อ (สัญชาติ/โทร)</th>
+                                                    <th>VC / เอเยนต์</th>
+                                                    <th>โปรแกรม</th>
+                                                    <th>PAX</th>
+                                                    <th>หมายเหตุ</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="tbody-join">
@@ -152,20 +151,19 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
 
                                 <div class="tab-pane fade" id="private-pool" role="tabpanel">
                                     <div class="table-responsive table-waiting-pool">
-                                        <table class="table table-hover table-bordered table-sm" id="table-private">
+                                        <table class="table table-hover table-bordered table-sm" id="table-private" style="color:black !important;">
                                             <thead class="thead-light text-center">
                                                 <tr>
                                                     <th>
                                                         <div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="checkAllPrivate"><label class="custom-control-label" for="checkAllPrivate"></label></div>
                                                     </th>
-                                                    <th>ETD</th>
-                                                    <th>Hotel (Zone)</th>
-                                                    <th>Room#</th>
-                                                    <th>Guest Name</th>
-                                                    <th>Pax</th>
-                                                    <th>V/C</th>
-                                                    <th>Programe</th>
-                                                    <th>Action</th>
+                                                    <th>โซน (เวลารับ)</th>
+                                                    <th>โรงแรม (ห้อง)</th>
+                                                    <th>ชื่อ (สัญชาติ/โทร)</th>
+                                                    <th>VC / เอเยนต์</th>
+                                                    <th>โปรแกรม</th>
+                                                    <th>PAX</th>
+                                                    <th>หมายเหตุ</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="tbody-private">
@@ -226,9 +224,9 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                     <button type="button" class="btn btn-success btn-block btn-lg mb-1 font-weight-bold shadow-sm" id="btn-assign-van">
                                         <i data-feather="check"></i> ASSIGN CAR
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary btn-block font-weight-bold">
+                                    <!-- <button type="button" class="btn btn-outline-secondary btn-block font-weight-bold">
                                         <i data-feather="x"></i> CLEAR SELECTION
-                                    </button>
+                                    </button> -->
                                 </div>
 
                             </div>

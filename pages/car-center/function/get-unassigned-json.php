@@ -41,10 +41,18 @@ if (isset($_POST['travel_date']) && isset($_POST['product_ids'])) {
 
     // 1. เตรียมข้อมูล
     foreach ($bookings as $row) {
-        $is_private = ($row['transfer_type'] == 2) ? true : false;
+        $is_private = ($row['bt_type'] == 2) ? true : false;
 
         $row['transfer_mode'] = $is_private ? 'private' : 'join';
-        $row['pax_total'] = $row['adult'] + $row['child'] + $row['foc'];
+
+        // 🌟 ใช้ remaining_pax แทนยอดเต็ม เพื่อให้โชว์เศษคนที่เหลือจากการ Split
+        $row['pax_total'] = (int)$row['remaining_pax'];
+
+        // 🌟 หลอกระบบฝั่งหน้าบ้าน ให้เอาเศษคนไปพักไว้ที่ Adult ก่อน เพื่อเวลาเซฟจะได้เลขที่เป๊ะ
+        $row['adult'] = $row['pax_total'];
+        $row['child'] = 0;
+        $row['infant'] = 0;
+        $row['foc'] = 0;
 
         $row['guest_name'] = !empty($row['guest_name']) ? $row['guest_name'] : 'Customer';
 

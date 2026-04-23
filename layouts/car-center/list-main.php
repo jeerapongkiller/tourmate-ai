@@ -405,22 +405,27 @@
                         zone_ids: zoneIds,
                     },
                     success: function(res) {
-
+                        // console.log('Raw Response:', res);
                         if (typeof res === 'string') {
                             res = JSON.parse(res);
                         }
 
                         if (res.status === 'success') {
-                            // 🌟 แอบเพิ่มข้อมูลพื้นฐานให้ JSON ดิบ เพื่อใช้ประโยชน์ตอน Split
-                            let processedData = res.data.map(b => ({
-                                ...b,
-                                original_bt_id: b.bt_id, // จำ ID แท้ไว้
-                                base_guest_name: b.guest_display, // จำชื่อแท้ไว้ จะได้ไม่ Grp ซ้อน Grp
-                                is_split: false
-                            }));
+                            // 🌟 แอบเพิ่มข้อมูลพื้นฐานให้ JSON ดิบ และแก้ปัญหา ID ซ้ำกัน
+                            let processedData = res.data.map(b => {
+                                let uniqueUI_ID = b.bt_id + '_' + b.transfer_type_tag; // สร้าง ID ไม่ให้ซ้ำ (เช่น 7_pickup, 7_dropoff)
+                                return {
+                                    ...b,
+                                    db_bt_id: b.bt_id, // 🌟 เก็บ ID แท้ๆ ไว้ส่งให้ Database ตอน Save
+                                    bt_id: uniqueUI_ID, // หลอกหน้าบ้านให้ใช้ ID ที่ไม่ซ้ำกัน Checkbox จะได้ไม่รวน
+                                    original_bt_id: uniqueUI_ID, // สำหรับระบบ Merge
+                                    base_guest_name: b.guest_name, // จำชื่อแท้ไว้
+                                    is_split: false
+                                };
+                            });
 
-                            masterPoolData = JSON.parse(JSON.stringify(processedData)); // ก๊อปปี้ของแท้
-                            waitingPoolData = JSON.parse(JSON.stringify(processedData)); // ก๊อปปี้มาใช้งาน
+                            masterPoolData = JSON.parse(JSON.stringify(processedData));
+                            waitingPoolData = JSON.parse(JSON.stringify(processedData));
 
                             renderTables();
                         }
@@ -456,6 +461,11 @@
                         actionBtns += `<button type="button" class="btn btn-sm btn-icon btn-flat-danger btn-split" data-id="${b.bt_id}" data-pax="${b.pax_total}" title="แบ่งกลุ่ม"><i data-feather="scissors"></i></button>`;
                     }
 
+                    // 🌟 เพิ่มป้าย Badge เพื่อให้พนักงานรู้ว่าบรรทัดไหนคือขากลับ
+                    let typeBadge = '';
+                    if (b.transfer_type_tag === 'dropoff') typeBadge = '<span class="badge badge-light-danger ml-50">Dropoff</span>';
+                    else if (b.transfer_type_tag === 'overnight') typeBadge = '<span class="badge badge-light-info ml-50">Overnight</span>';
+
                     // HTML ของแต่ละ Row
                     let tr = `
                         <tr id="row-${b.bt_id}">
@@ -465,13 +475,15 @@
                                     <label class="custom-control-label" for="chk-${b.bt_id}"></label>
                                 </div>
                             </td>
-                            <td class="text-center">${b.action_time}</td>
-                            <td>${b.hotel_name}<br><small class="text-muted">Zone: ${b.zone_name}</small></td>
-                            <td class="text-center">${b.room_no || '-'}</td>
-                            <td>${b.guest_name}<br><small class="text-muted">Nation: ${b.nationality}</small></td>
+                            <td>
+                                <span class="badge" style="background-color: ${b.color_hex || '#ccc'}; color: #1f2937;">${b.zone_name}</span>
+                                <br><small class="text-muted">Time: ${b.action_time}</small>
+                            </td>
+                            <td>${b.hotel_name} ${typeBadge}<br><small class="text-muted">Room: ${b.room_no}</small></td>
+                            <td>${b.guest_name}<br><small class="text-muted">Nation: ${b.nationality}, Tel: ${b.guest_phone}</small></td>
+                            <td>${b.voucher_no}<br><small class="text-muted">Agent: ${b.company_name}</small></td>
+                            <td class="text-center">${b.product_name}</td>
                             <td class="text-center font-weight-bold text-primary">${b.pax_total}</td>
-                            <td class="text-center">${b.voucher_no}</td>
-                            <td class="text-center">${b.programe_name}</td>
                             <td class="text-center">${actionBtns}</td>
                         </tr>
                     `;
@@ -485,7 +497,7 @@
                             // แทรกโค้ดเส้นแบ่ง AI
                             htmlJoin += `
                                 <tr class="ai-divider-row">
-                                    <td colspan="8" style="background-color: #f0fdf4; color: #166534; font-weight: 600; text-align: center; border-top: 2px dashed #22c55e; border-bottom: 2px dashed #22c55e; padding: 6px;">
+                                    <td colspan="9" style="background-color: #f0fdf4; color: #166534; font-weight: 600; text-align: center; border-top: 2px dashed #22c55e; border-bottom: 2px dashed #22c55e; padding: 6px;">
                                         <i data-feather="zap" width="14" height="14"></i> &gt;&gt; AI SUGGESTION: ${maxVanCapacity} PAX LIMIT &lt;&lt; <i data-feather="zap" width="14" height="14"></i>
                                     </td>
                                 </tr>
@@ -506,7 +518,7 @@
                         if (accumulatedPrivate + parseInt(b.pax_total) > maxVanCapacity && accumulatedPrivate > 0) {
                             htmlPrivate += `
                                 <tr class="ai-divider-row">
-                                    <td colspan="8" style="background-color: #f0fdf4; color: #166534; font-weight: 600; text-align: center; border-top: 2px dashed #22c55e; border-bottom: 2px dashed #22c55e; padding: 6px;">
+                                    <td colspan="9" style="background-color: #f0fdf4; color: #166534; font-weight: 600; text-align: center; border-top: 2px dashed #22c55e; border-bottom: 2px dashed #22c55e; padding: 6px;">
                                         <i data-feather="zap" width="14" height="14"></i> &gt;&gt; AI SUGGESTION: ${maxVanCapacity} PAX LIMIT &lt;&lt; <i data-feather="zap" width="14" height="14"></i>
                                     </td>
                                 </tr>
@@ -558,7 +570,7 @@
                         selectedHtml += `
                     <div class="selected-booking-item ${totalPax > maxVanCapacity ? 'border-danger' : ''}">
                         <i data-feather="check-circle" class="text-success mr-50" width="16" height="16"></i> 
-                        ${b.hotel_name} - ${b.guest_display} 
+                        ${b.hotel_name} - ${b.guest_name} 
                         <span class="badge badge-light-secondary ml-auto">${b.pax_total} Pax</span>
                     </div>
                 `;
@@ -716,8 +728,8 @@
                     let b = waitingPoolData.find(x => x.bt_id == id);
                     if (b) {
                         selectedBookings.push({
-                            bt_id: b.original_bt_id, // 🌟 เปลี่ยนตรงนี้ ดึง ID ต้นฉบับเสมอ
-                            transfer_type: b.transfer_type,
+                            bt_id: b.db_bt_id, // 🌟 ใช้ db_bt_id ที่เป็นเลข 7 เพียวๆ ส่งกลับให้ Database
+                            transfer_type: b.transfer_type_tag, // pickup, dropoff, overnight
                             updated_at: b.updated_at,
                             adult: b.adult,
                             child: b.child,
@@ -732,19 +744,21 @@
                     action: 'assign_van',
                     travel_date: '2026-04-10', // ดึงจากค่าบนจอ
                     product_id: 1, // ดึงจาก Dropdown
-                    car_id: $('#van-select').val() || 0,
-                    driver_id: $('#driver-select').val() || 0,
+                    car_id: $('#van-waiting').val() || 0,
+                    seat: $('#van-waiting option:selected').attr('data-seat') || 12,
+                    driver_id: $('#driver-waiting').val() || 0,
                     manage_id: 0, // 0 = เปิดรถใหม่
                     bookings: selectedBookings
                 };
 
                 // 3. ยิงไปหา API ที่เราเพิ่งเขียน
                 $.ajax({
-                    url: 'pages/manage-driver/function/save-van-builder.php',
+                    url: 'pages/car-center/function/save-van-builder.php',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify(payload),
                     success: function(res) {
+                        // console.log(res);
                         if (res.failed_count > 0) {
                             // มี Error บางรายการ (Partial Success)
                             let errorHtml = '<ul>';
@@ -760,7 +774,7 @@
                                 confirmButtonText: 'รับทราบ (รีเฟรชหน้าจอ)'
                             }).then(() => {
                                 // โหลดตารางซ้ายมือใหม่ (เพื่อลบใบที่มีปัญหาออก)
-                                fetchWaitingPool('2026-04-10', 1);
+                                $('#btn-fetch-waiting').trigger('click');
                             });
                         } else {
                             // สำเร็จ 100%
@@ -770,7 +784,8 @@
                                 showConfirmButton: false,
                                 timer: 1500
                             }).then(() => {
-                                fetchWaitingPool('2026-04-10', 1);
+                                // 🌟 สั่งให้จำลองการกดปุ่ม "ค้นหา" เพื่อรีเฟรชข้อมูลอัตโนมัติ
+                                $('#btn-fetch-waiting').trigger('click');
                             });
                         }
                     }

@@ -1087,106 +1087,237 @@ class Manage extends DB
 
         $in_zone = implode(',', array_map('intval', $zone_ids));
 
-        $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, 
-                   BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time, 
-                   HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
-                   'pickup' as transfer_type,
-                   BTYE.name as booking_type_name, CATE.transfer as category_transfer,
-                   BT.room_no, BT.hotel_pickup, CUS.name as guest_name, NATION.name as nationality,
-                   BP.note as special_request, BO.updated_at,
-                   (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
-                   (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
-                   (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
-                   (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
-            FROM bookings BO
-            JOIN booking_products BP ON BO.id = BP.booking_id
-            JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-            LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-            LEFT JOIN products PROD ON BP.product_id = PROD.id
-            LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
-            LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-            LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-            LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
-            LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
-            LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
-            WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
+        $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, COMP.name as company_name,
+                    BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, ZONE_P.color_hex, BT.start_pickup as action_time, PROD.name as product_name,
+                    HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
+                    'pickup' as transfer_type_tag,
+                    BTYE.name as booking_type_name, CATE.transfer as category_transfer,
+                    BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, 
+                    CUS.name as guest_name, CUS.telephone as guest_phone, 
+                    NATION.name as nationality, BP.note as special_request, BO.updated_at,
+                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) as remaining_pax
+                FROM bookings BO
+                JOIN booking_products BP ON BO.id = BP.booking_id
+                JOIN booking_transfer BT ON BP.id = BT.booking_products_id
+                LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
+                LEFT JOIN companies COMP ON BO.company_id = COMP.id
+                LEFT JOIN products PROD ON BP.product_id = PROD.id
+                -- ดึง Pax รวมผ่าน Join ครั้งเดียว
+                LEFT JOIN (
+                    SELECT booking_products_id, category_id,
+                        SUM(adult) as sum_adult, SUM(child) as sum_child, 
+                        SUM(infant) as sum_infant, SUM(foc) as sum_foc
+                    FROM booking_product_rates GROUP BY booking_products_id
+                ) BPR_SUM ON BP.id = BPR_SUM.booking_products_id
+                LEFT JOIN product_category CATE ON BPR_SUM.category_id = CATE.id
+                LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
+                LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+                LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
+                LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
+                -- 🌟 หาผลรวมคนที่ถูกจัดรถไปแล้ว (Pickup)
+                LEFT JOIN (
+                    SELECT booking_transfer_id, SUM(pax) as assigned_pax 
+                    FROM booking_manage_transfer GROUP BY booking_transfer_id
+                ) BMT_SUM ON BT.id = BMT_SUM.booking_transfer_id
+                WHERE BP.travel_date = '$travel_date' 
+                AND BP.product_id IN ($in_clause) 
+                AND BO.booking_status_id NOT IN (3, 4) 
+                AND BT.pickup_type IN (1, 3) 
 
-        $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
+                AND BP.is_deleted = 0
+                -- 🌟 กรองเอาเฉพาะคนที่ยังเหลืออยู่ (ยังไม่ถูกจัด หรือจัดไปยังไม่ครบ)
+                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) > 0 " .
+            ((!empty($in_zone)) ? " AND ZONE_P.id IN ($in_zone) " : "") . "
+                GROUP BY BT.id
 
-        $query .= " AND BO.booking_status_id NOT IN (3, 4) AND BT.pickup_type IN (1, 3) 
-              AND BMT.id IS NULL AND BP.is_deleted = 0
-            GROUP BY BT.id
+                UNION ALL
 
-            UNION ALL
+                -- 2. Dropoff
+                SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name,
+                    BT.dropoff_id, ZONE_D.name_th, ZONE_D.color_hex, BT.end_pickup, PROD.name,
+                    HOTELD.name, HOTELD.lat, HOTELD.lng,
+                    'dropoff' as transfer_type_tag,
+                    BTYE.name, CATE.transfer,
+                    BT.room_no, BT.transfer_type, BT.hotel_pickup, 
+                    CUS.name, CUS.telephone, NATION.name, BP.note, BO.updated_at,
+                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) as remaining_pax
+                FROM bookings BO
+                JOIN booking_products BP ON BO.id = BP.booking_id
+                JOIN booking_transfer BT ON BP.id = BT.booking_products_id
+                LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
+                LEFT JOIN companies COMP ON BO.company_id = COMP.id
+                LEFT JOIN products PROD ON BP.product_id = PROD.id
+                LEFT JOIN (
+                    SELECT booking_products_id, category_id,
+                        SUM(adult) as sum_adult, SUM(child) as sum_child, 
+                        SUM(infant) as sum_infant, SUM(foc) as sum_foc
+                    FROM booking_product_rates GROUP BY booking_products_id
+                ) BPR_SUM ON BP.id = BPR_SUM.booking_products_id
+                LEFT JOIN product_category CATE ON BPR_SUM.category_id = CATE.id
+                LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
+                LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+                LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
+                LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
+                LEFT JOIN (
+                    SELECT booking_transfer_id, SUM(pax) as assigned_pax 
+                    FROM dropoff_transfers GROUP BY booking_transfer_id
+                ) DT_SUM ON BT.id = DT_SUM.booking_transfer_id
+                WHERE BP.travel_date = '$travel_date' 
+                AND BP.product_id IN ($in_clause) 
+                AND BO.booking_status_id NOT IN (3, 4) 
+                AND (BT.pickup_id != BT.dropoff_id OR BT.hotel_pickup_id != BT.hotel_dropoff_id OR BT.pickup_type = 3)
+                AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
 
-            -- 2. ตะกร้าขากลับเปลี่ยนที่ (Dropoff)
-            SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, 
-                   BT.dropoff_id, ZONE_D.name_th, BT.end_pickup, 
-                   HOTELD.name, HOTELD.lat, HOTELD.lng,
-                   'dropoff',
-                   BTYE.name, CATE.transfer,
-                   BT.room_no, BT.hotel_pickup, CUS.name, NATION.name,
-                   BP.note, BO.updated_at,
-                   (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
-                   (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
-                   (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id),
-                   (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id)
-            FROM bookings BO
-            JOIN booking_products BP ON BO.id = BP.booking_id
-            JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-            LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-            LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
-            LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-            LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-            LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
-            LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-            LEFT JOIN dropoff_transfers DT ON BT.id = DT.booking_transfer_id
-            WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
+                AND BP.is_deleted = 0 
+                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) > 0 " .
+            ((!empty($in_zone)) ? " AND ZONE_D.id IN ($in_zone) " : "") . "
+                GROUP BY BT.id
 
-        $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
+                UNION ALL
 
-        $query .= " AND BO.booking_status_id NOT IN (3, 4) 
-              AND (BT.pickup_id != BT.dropoff_id OR BT.hotel_pickup_id != BT.hotel_dropoff_id OR BT.pickup_type = 3)
-              AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
-              AND DT.id IS NULL AND BP.is_deleted = 0
-            GROUP BY BT.id
+                -- 3. Overnight
+                SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name,
+                    BT.dropoff_id, ZONE_D.name_th, ZONE_D.color_hex, BT.end_pickup, PROD.name,
+                    HOTELD.name, HOTELD.lat, HOTELD.lng,
+                    'overnight' as transfer_type_tag,
+                    BTYE.name, CATE.transfer,
+                    BT.room_no, BT.transfer_type, BT.hotel_pickup, 
+                    CUS.name, CUS.telephone, NATION.name, BP.note, BO.updated_at,
+                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) as remaining_pax
+                FROM bookings BO
+                JOIN booking_products BP ON BO.id = BP.booking_id
+                JOIN booking_transfer BT ON BP.id = BT.booking_products_id
+                LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
+                LEFT JOIN companies COMP ON BO.company_id = COMP.id
+                LEFT JOIN products PROD ON BP.product_id = PROD.id
+                LEFT JOIN (
+                    SELECT booking_products_id, category_id,
+                        SUM(adult) as sum_adult, SUM(child) as sum_child, 
+                        SUM(infant) as sum_infant, SUM(foc) as sum_foc
+                    FROM booking_product_rates GROUP BY booking_products_id
+                ) BPR_SUM ON BP.id = BPR_SUM.booking_products_id
+                LEFT JOIN product_category CATE ON BPR_SUM.category_id = CATE.id
+                LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
+                LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+                LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
+                LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
+                LEFT JOIN (
+                    SELECT booking_transfer_id, SUM(pax) as assigned_pax 
+                    FROM overnight_transfers GROUP BY booking_transfer_id
+                ) OT_SUM ON BT.id = OT_SUM.booking_transfer_id
+                WHERE BP.overnight = '$travel_date' 
+                AND BP.product_id IN ($in_clause) 
+                AND BO.booking_status_id NOT IN (3, 4) 
 
-            UNION ALL
-
-            -- 3. ตะกร้าค้างคืน (Overnight)
-            SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, 
-                   BT.dropoff_id, ZONE_D.name_th, BT.end_pickup, 
-                   HOTELD.name, HOTELD.lat, HOTELD.lng,
-                   'overnight',
-                   BTYE.name, CATE.transfer,
-                   BT.room_no, BT.hotel_pickup, CUS.name, NATION.name,
-                   BP.note, BO.updated_at,
-                   (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
-                   (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
-                   (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id),
-                   (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id)
-            FROM bookings BO
-            JOIN booking_products BP ON BO.id = BP.booking_id
-            JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-            LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-            LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
-            LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-            LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-            LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
-            LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-            LEFT JOIN overnight_transfers OT ON BT.id = OT.booking_transfer_id
-            WHERE BP.overnight = '$travel_date' AND BP.product_id IN ($in_clause) ";
-
-        $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
-
-        $query .= " AND BO.booking_status_id NOT IN (3, 4) 
-              AND OT.id IS NULL AND BP.is_deleted = 0
-            GROUP BY BT.id
-        ";
+                AND BP.is_deleted = 0
+                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) > 0 " .
+            ((!empty($in_zone)) ? " AND ZONE_D.id IN ($in_zone) " : "") . "
+                GROUP BY BT.id
+            ";
 
         // echo $query;
         $result = $this->connection->query($query);
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+
+        // $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, COMP.name as company_name,
+        //            BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time, PROD.name as product_name,
+        //            HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
+        //            'pickup' as transfer_type,
+        //            BTYE.name as booking_type_name, CATE.transfer as category_transfer,
+        //            BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, CUS.name as guest_name, 
+        //            CUS.telephone as guest_phone, NATION.name as nationality, BP.note as special_request, BO.updated_at,
+        //            (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
+        //            (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
+        //            (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
+        //            (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
+        //     FROM bookings BO
+        //     JOIN booking_products BP ON BO.id = BP.booking_id
+        //     JOIN booking_transfer BT ON BP.id = BT.booking_products_id
+        //     LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
+        //     LEFT JOIN companies COMP ON BO.company_id = COMP.id
+        //     LEFT JOIN products PROD ON BP.product_id = PROD.id
+        //     LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
+        //     LEFT JOIN customers CUS ON BO.id = CUS.booking_id
+        //     LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+        //     LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
+        //     LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
+        //     LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
+        //     WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
+
+        // $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
+
+        // $query .= " AND BO.booking_status_id NOT IN (3, 4) AND BT.pickup_type IN (1, 3) 
+        //       AND BMT.id IS NULL AND BP.is_deleted = 0
+        //     GROUP BY BT.id
+
+        //     UNION ALL
+
+        //     -- 2. ตะกร้าขากลับเปลี่ยนที่ (Dropoff)
+        //     SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name as company_name,
+        //            BT.dropoff_id, ZONE_D.name, BT.end_pickup, PROD.name as product_name,
+        //            HOTELD.name, HOTELD.lat, HOTELD.lng,
+        //            'dropoff',
+        //            BTYE.name, CATE.transfer,
+        //            BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, CUS.name, 
+        //            CUS.telephone as guest_phone, NATION.name, BP.note, BO.updated_at,
+        //            (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
+        //            (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
+        //            (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id),
+        //            (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id)
+        //     FROM bookings BO
+        //     JOIN booking_products BP ON BO.id = BP.booking_id
+        //     JOIN booking_transfer BT ON BP.id = BT.booking_products_id
+        //     LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
+        //     LEFT JOIN companies COMP ON BO.company_id = COMP.id
+        //     LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
+        //     LEFT JOIN customers CUS ON BO.id = CUS.booking_id
+        //     LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+        //     LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
+        //     LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
+        //     LEFT JOIN dropoff_transfers DT ON BT.id = DT.booking_transfer_id
+        //     WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
+
+        // $query .= (!empty($in_zone)) ? "AND ZONE_D.id IN ($in_zone) " : "";
+
+        // $query .= " AND BO.booking_status_id NOT IN (3, 4) 
+        //       AND (BT.pickup_id != BT.dropoff_id OR BT.hotel_pickup_id != BT.hotel_dropoff_id OR BT.pickup_type = 3)
+        //       AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
+        //       AND DT.id IS NULL AND BP.is_deleted = 0
+        //     GROUP BY BT.id
+
+        //     UNION ALL
+
+        //     -- 3. ตะกร้าค้างคืน (Overnight)
+        //     SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name as company_name,
+        //            BT.dropoff_id, ZONE_D.name, BT.end_pickup, PROD.name as product_name,
+        //            HOTELD.name, HOTELD.lat, HOTELD.lng,
+        //            'overnight',
+        //            BTYE.name, CATE.transfer,
+        //            BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, CUS.name, 
+        //            CUS.telephone as guest_phone, NATION.name, BP.note, BO.updated_at,
+        //            (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
+        //            (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
+        //            (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id),
+        //            (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id)
+        //     FROM bookings BO
+        //     JOIN booking_products BP ON BO.id = BP.booking_id
+        //     JOIN booking_transfer BT ON BP.id = BT.booking_products_id
+        //     LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
+        //     LEFT JOIN companies COMP ON BO.company_id = COMP.id
+        //     LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
+        //     LEFT JOIN customers CUS ON BO.id = CUS.booking_id
+        //     LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+        //     LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
+        //     LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
+        //     LEFT JOIN overnight_transfers OT ON BT.id = OT.booking_transfer_id
+        //     WHERE BP.overnight = '$travel_date' AND BP.product_id IN ($in_clause) ";
+
+        // $query .= (!empty($in_zone)) ? "AND ZONE_D.id IN ($in_zone) " : "";
+
+        // $query .= " AND BO.booking_status_id NOT IN (3, 4) 
+        //       AND OT.id IS NULL AND BP.is_deleted = 0
+        //     GROUP BY BT.id
+        // ";
 
         // แปลง Array ของ ID ให้เป็น String เช่น "1,2,5" เพื่อใส่ในคำสั่ง IN()
         // $in_clause = implode(',', array_map('intval', $product_ids));
@@ -1229,22 +1360,18 @@ class Manage extends DB
     }
 
     // 💡 ฟังก์ชันตรวจสอบความถูกต้องก่อนจัดรถ (Concurrency Control)
-    public function verify_booking_for_assignment(int $bt_id, string $frontend_updated_at)
+    // 💡 ฟังก์ชันตรวจสอบโควต้าที่นั่งก่อนจัดรถ (รองรับ Partial Assignment)
+    public function verify_booking_for_assignment(int $bt_id, string $frontend_updated_at, string $transfer_type, int $requested_pax)
     {
         $query = "SELECT BO.id as bo_id, BO.updated_at, BO.voucher_no_agent, BONO.bo_full,
-                         (CASE
-                             WHEN BMT.id IS NOT NULL THEN 1
-                             WHEN DT.id IS NOT NULL THEN 1
-                             WHEN OT.id IS NOT NULL THEN 1
-                             ELSE 0
-                         END) as is_assigned
+                         (SELECT IFNULL(SUM(adult),0) + IFNULL(SUM(child),0) + IFNULL(SUM(foc),0) FROM booking_product_rates WHERE booking_products_id = BP.id) as total_pax,
+                         (SELECT IFNULL(SUM(pax), 0) FROM booking_manage_transfer WHERE booking_transfer_id = BT.id) as pickup_assigned,
+                         (SELECT IFNULL(SUM(pax), 0) FROM dropoff_transfers WHERE booking_transfer_id = BT.id) as dropoff_assigned,
+                         (SELECT IFNULL(SUM(pax), 0) FROM overnight_transfers WHERE booking_transfer_id = BT.id) as overnight_assigned
                   FROM booking_transfer BT
                   JOIN booking_products BP ON BT.booking_products_id = BP.id
                   JOIN bookings BO ON BP.booking_id = BO.id
                   LEFT JOIN bookings_no BONO ON BO.id = BONO.booking_id
-                  LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
-                  LEFT JOIN dropoff_transfers DT ON BT.id = DT.booking_transfer_id
-                  LEFT JOIN overnight_transfers OT ON BT.id = OT.booking_transfer_id
                   WHERE BT.id = ?";
 
         $stmt = $this->connection->prepare($query);
@@ -1252,24 +1379,26 @@ class Manage extends DB
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
 
-        // 1. ถ้าไม่เจอข้อมูล
-        if (!$result) {
-            return ['status' => false, 'reason' => 'ไม่พบข้อมูลในระบบ', 'vc' => 'Unknown'];
-        }
+        if (!$result) return ['status' => false, 'reason' => 'ไม่พบข้อมูลในระบบ', 'vc' => 'Unknown'];
 
         $vc_name = !empty($result['voucher_no_agent']) ? $result['voucher_no_agent'] : $result['bo_full'];
 
-        // 2. ด่านตรวจ: ถูกจัดรถไปแล้วหรือยัง? (ป้องกันนาย A และ B แย่งกัน)
-        if ($result['is_assigned'] == 1) {
-            return ['status' => false, 'reason' => 'ถูกจัดรถไปแล้วโดยพนักงานท่านอื่น', 'vc' => $vc_name];
-        }
-
-        // 3. ด่านตรวจ: ผีหลอก? (Sales แอบแก้ข้อมูลระหว่างที่เปิดหน้าจอค้างไว้)
         if ($result['updated_at'] !== $frontend_updated_at) {
             return ['status' => false, 'reason' => 'ข้อมูล Booking มีการเปลี่ยนแปลง', 'vc' => $vc_name];
         }
 
-        // ✅ ผ่านทุกด่าน ปลอดภัย!
+        // เช็คว่าที่นั่งเหลือพอให้เซฟหรือไม่ ตามประเภท Transfer
+        $assigned_already = 0;
+        if ($transfer_type == 'pickup') $assigned_already = $result['pickup_assigned'];
+        elseif ($transfer_type == 'dropoff') $assigned_already = $result['dropoff_assigned'];
+        elseif ($transfer_type == 'overnight') $assigned_already = $result['overnight_assigned'];
+
+        $remaining_pax = $result['total_pax'] - $assigned_already;
+
+        if ($requested_pax > $remaining_pax) {
+            return ['status' => false, 'reason' => "ที่นั่งไม่พอ (โควต้าเหลือ $remaining_pax)", 'vc' => $vc_name];
+        }
+
         return ['status' => true];
     }
 

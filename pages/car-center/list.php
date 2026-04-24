@@ -31,12 +31,12 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
             <ul class="nav nav-tabs" id="bookingTypeTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link active font-weight-bolder text-primary" id="join-tab" data-toggle="tab" href="#waiting-tab" role="tab">
-                        <i data-feather='shopping-cart'></i> รอจัดรถ (Waiting for Car) <span class="badge badge-pill badge-light-primary ml-50" id="">(45 คน)</span>
+                        <i data-feather='shopping-cart'></i> รอจัดรถ (Waiting for Car) <span class="badge badge-pill badge-light-primary ml-50" id="">(0 คน)</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link font-weight-bolder text-warning" id="private-tab" data-toggle="tab" href="#assigned-tab" role="tab">
-                        <i data-feather='truck'></i> จัดรถแล้ว (Car Assigned) <span class="badge badge-pill badge-light-warning ml-50" id="">(8 คัน/24 คน)</span>
+                        <i data-feather='truck'></i> จัดรถแล้ว (Car Assigned) <span class="badge badge-pill badge-light-warning ml-50" id="">(0 คัน/0 คน)</span>
                     </a>
                 </li>
             </ul>
@@ -79,6 +79,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                         <?php
                                         $products = $manageObj->showproducts();
                                         foreach ($products as $product) {
+                                            if (str_contains($product['name'], 'NO TRANSFER')) continue; // ข้ามโปรแกรมที่มีคำว่า NO TRANSFER ในชื่อ เพราะไม่ต้องจัดรถให้
                                             echo "<option value='{$product['id']}' data-park='{$product['park_id']}'>{$product['name']}</option>";
                                         }
                                         ?>
@@ -91,18 +92,71 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                     <select class="form-control select2" id="waiting-zones" multiple>
                                         <?php
                                         $zones = $manageObj->showzones();
+
+                                        // 1. ตั้งค่า Keyword สำหรับดักจับคำในชื่อโซน
+                                        $zoneGroups = [
+                                            '1. โซนตอนเหนือ (Northern Route)' => ['ไม้ขาว', 'ไนยาง', 'ในทอน', 'Mai Khao', 'Nai Yang', 'Naithon'],
+                                            '2. โซนกลาง-เหนือ (Mid-North Route)' => ['บางเทา', 'ลากูน่า', 'สุรินทร์', 'กมลา', 'Bang Tao', 'Laguna', 'Surin', 'Kamala'],
+                                            '3. โซนศูนย์กลาง (Central Route)' => ['ป่าตอง', 'กะหลิม', 'ตรัยตรัง', 'Patong', 'Kalim', 'Tri Trang'],
+                                            '4. โซนกลาง-ใต้ (Mid-South Route)' => ['กะตะ', 'กะรน', 'Kata', 'Karon'],
+                                            '5. โซนตอนใต้สุด (Deep South Route)' => ['ในหาน', 'ราไวย์', 'ฉลอง', 'Nai Harn', 'Rawai', 'Chalong'],
+                                            '6. โซนเมืองและตะวันออก (East & City)' => ['เมือง', 'ภูเก็ต', 'เกาะสิเหร่', 'แหลมพันวา', 'อ่าวมะขาม', 'Phuket Town', 'Sirey', 'Panwa', 'Makham']
+                                        ];
+
+                                        $categorizedZones = [];
+                                        $otherZones = [];
+
+                                        // 2. วนลูปแยกโซนเข้าตะกร้า
+                                        foreach ($zones as $zone) {
+                                            $found = false;
+                                            $zoneName = strtolower($zone['name']); // สมมติว่าดึงชื่อจาก ['name'] หรือ ['name_th']
+
+                                            foreach ($zoneGroups as $groupName => $keywords) {
+                                                foreach ($keywords as $keyword) {
+                                                    if (stripos($zoneName, strtolower($keyword)) !== false) {
+                                                        $categorizedZones[$groupName][] = $zone;
+                                                        $found = true;
+                                                        break;
+                                                    }
+                                                }
+                                                if ($found) break;
+                                            }
+                                            if (!$found) $otherZones[] = $zone; // ถ้าไม่ตรงกับกลุ่มไหนเลย
+                                        }
+
+                                        // 3. วาด HTML Optgroup
+                                        foreach ($categorizedZones as $groupName => $groupZones) {
+                                            echo "<optgroup label='{$groupName}'>";
+                                            foreach ($groupZones as $z) {
+                                                echo "<option value='{$z['id']}'>{$z['name']}</option>";
+                                            }
+                                            echo "</optgroup>";
+                                        }
+
+                                        if (!empty($otherZones)) {
+                                            echo "<optgroup label='7. โซนอื่นๆ (Other Routes)'>";
+                                            foreach ($otherZones as $z) {
+                                                echo "<option value='{$z['id']}'>{$z['name']}</option>";
+                                            }
+                                            echo "</optgroup>";
+                                        }
+                                        ?>
+                                    </select>
+                                    <!-- <select class="form-control select2" id="waiting-zones" multiple>
+                                        <?php
+                                        $zones = $manageObj->showzones();
                                         foreach ($zones as $zone) {
                                             echo "<option value='{$zone['id']}'>{$zone['name']}</option>";
                                         }
                                         ?>
-                                    </select>
+                                    </select> -->
                                 </div>
                             </div>
-                            <div class="col-md-1 pt-1">
+                            <!-- <div class="col-md-1 pt-1">
                                 <button type="button" class="btn btn-primary btn-block" id="btn-fetch-waiting">
                                     <i data-feather="search"></i> ค้นหา
                                 </button>
-                            </div>
+                            </div> -->
                         </div>
                     </form>
                     <!-- filter end -->
@@ -217,7 +271,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
 
                                 <hr class="w-100 my-1">
 
-                                <div class="flex-grow-1 overflow-auto mb-2" style="max-height: 250px;">
+                                <div class="flex-grow-1 overflow-auto mb-2 pr-50" id="builder-booking-list" style="max-height: 250px;">
                                 </div>
 
                                 <div class="mt-auto">
@@ -237,8 +291,173 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                 <!-- END WAITING CAR POOL -->
 
                 <!-- START ASSIGNED CAR -->
-                <div class="card tab-pane fade show active" id="assigned-tab" role="tabpanel">
+                <div class="card tab-pane fade" id="assigned-tab" role="tabpanel">
+                    <div class="row p-2">
 
+                        <div class="col-md-8 border-right">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <h4 class="mb-0 font-weight-bolder text-primary"><i data-feather="grid"></i> ภาพรวมรถที่จัดแล้ว</h4>
+                                    <p class="text-muted small mb-0 mt-25">คลิกที่การ์ดรถเพื่อดูรายละเอียดรายชื่อลูกค้า แก้ไข หรือจัดเรียงคิว</p>
+                                </div>
+                                <div>
+                                    <button class="btn btn-outline-primary btn-sm"><i data-feather="printer"></i> พิมพ์ใบงานทั้งหมด</button>
+                                </div>
+                            </div>
+
+                            <div class="row mt-2" id="assigned-van-grid">
+
+                                <!-- <div class="col-xl-4 col-sm-6 mb-2">
+                                    <div class="card van-card active shadow-sm h-100">
+                                        <div class="card-body p-1 d-flex flex-column">
+                                            <div class="d-flex justify-content-start align-items-center mb-1">
+                                                <div class="avatar bg-light-primary p-50 mr-1">
+                                                    <div class="avatar-content">
+                                                        <i data-feather="truck" class="font-medium-5"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h5 class="mb-0 font-weight-bolder">รถ V02 <span class="text-warning">[10/12]</span></h5>
+                                                    <small class="text-muted">ว่าง 2 ที่นั่ง</small>
+                                                </div>
+                                            </div>
+                                            <div class="mb-1 small">
+                                                <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>นายสมชาย</b></div>
+                                                <div><i data-feather="map-pin" width="12"></i> โซน: <b>กะตะ, กะรน</b></div>
+                                            </div>
+                                            <div class="progress progress-bar-primary van-progress mb-1">
+                                                <div class="progress-bar" role="progressbar" style="width: 83%" aria-valuenow="83" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                            <div class="mt-auto row mx-0 text-center">
+                                                <div class="col-6 px-25">
+                                                    <button class="btn btn-sm btn-outline-secondary btn-block">แก้ไข</button>
+                                                </div>
+                                                <div class="col-6 px-25">
+                                                    <button class="btn btn-sm btn-primary btn-block">พิมพ์</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-xl-4 col-sm-6 mb-2">
+                                    <div class="card van-card shadow-sm h-100">
+                                        <div class="card-body p-1 d-flex flex-column">
+                                            <div class="d-flex justify-content-start align-items-center mb-1">
+                                                <div class="avatar bg-light-danger p-50 mr-1">
+                                                    <div class="avatar-content">
+                                                        <i data-feather="truck" class="font-medium-5"></i>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h5 class="mb-0 font-weight-bolder">รถ V01 <span class="text-danger">[12/12]</span></h5>
+                                                    <small class="text-danger font-weight-bold">เต็มแล้ว</small>
+                                                </div>
+                                            </div>
+                                            <div class="mb-1 small">
+                                                <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>นายชาก</b></div>
+                                                <div><i data-feather="map-pin" width="12"></i> โซน: <b>ป่าตอง</b></div>
+                                            </div>
+                                            <div class="progress progress-bar-danger van-progress mb-1">
+                                                <div class="progress-bar" role="progressbar" style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                            <div class="mt-auto row mx-0 text-center">
+                                                <div class="col-6 px-25">
+                                                    <button class="btn btn-sm btn-outline-secondary btn-block">แก้ไข</button>
+                                                </div>
+                                                <div class="col-6 px-25">
+                                                    <button class="btn btn-sm btn-primary btn-block">พิมพ์</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div> -->
+
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="assigned-panel-right p-2 h-100 d-flex flex-column">
+
+                                <div class="border-bottom pb-1 mb-1">
+                                    <h4 class="font-weight-bolder text-primary d-flex justify-content-between align-items-center">
+                                        <span>ข้อมูลสรุป รถ V02</span>
+                                        <span class="badge badge-light-primary text-right" style="font-size:1rem;">10/12</span>
+                                    </h4>
+                                    <div class="small">
+                                        <div><b>ผู้ขับ:</b> นายสมชาย (089-123-4567)</div>
+                                        <div><b>โซนหลัก:</b> กะตะ, กะรน</div>
+                                        <div><b>เวลาออก (แนะนำ):</b> 08:30</div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-1 font-weight-bold text-muted small">
+                                    <i data-feather="list"></i> เส้นทางรับลูกค้า (Drag to reorder)
+                                </div>
+
+                                <div class="flex-grow-1 overflow-auto mb-2 pr-50" id="assigned-booking-list" style="max-height: 400px;">
+
+                                    <div class="assigned-booking-item mb-1 cursor-move">
+                                        <div class="d-flex align-items-start">
+                                            <i data-feather="more-vertical" class="text-muted mr-50 mt-25"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex justify-content-between">
+                                                    <b class="text-dark">1. Kata Palm Resort</b>
+                                                    <span class="badge badge-light-secondary">3/0 Pax</span>
+                                                </div>
+                                                <div class="small text-muted">Naomalia (TH) • Rm: B54-C</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="assigned-booking-item mb-1 cursor-move">
+                                        <div class="d-flex align-items-start">
+                                            <i data-feather="more-vertical" class="text-muted mr-50 mt-25"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex justify-content-between">
+                                                    <b class="text-dark">2. Karon Beach Hotel</b>
+                                                    <span class="badge badge-light-secondary">4/1 Pax</span>
+                                                </div>
+                                                <div class="small text-muted">Parent B51 (UK) • Rm: A12</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="assigned-booking-item mb-1 border-warning cursor-move" style="background-color: #fff9e6;">
+                                        <div class="d-flex align-items-start">
+                                            <i data-feather="more-vertical" class="text-muted mr-50 mt-25"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex justify-content-between">
+                                                    <b class="text-dark">3. Patong Resort</b>
+                                                    <span class="badge badge-light-secondary">2/0 Pax</span>
+                                                </div>
+                                                <div class="small text-muted">John Doe (US) • Rm: 112</div>
+                                                <div class="small text-warning font-weight-bold mt-25"><i data-feather="alert-triangle" width="12"></i> อยู่นอกโซน (ป่าตอง)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <div class="mt-auto">
+                                    <button type="button" class="btn btn-outline-primary btn-block mb-1 font-weight-bold" id="btn-save-arrange">
+                                        <i data-feather="shuffle"></i> บันทึกการสลับคิว
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-block mb-1 font-weight-bold" id="btn-remove-van">
+                                        <i data-feather="user-minus"></i> ดีดออก (Remove from Van)
+                                    </button>
+                                    <button type="button" class="btn btn-info btn-block mb-1 font-weight-bold">
+                                        <i data-feather="printer"></i> พิมพ์ใบงานคันนี้
+                                    </button>
+                                    <button type="button" class="btn btn-success btn-block font-weight-bold shadow-sm">
+                                        <i data-feather="send"></i> ส่งงานให้คนขับ (Send to Driver)
+                                    </button>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
                 <!-- END ASSIGNED CAR -->
             </div>

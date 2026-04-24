@@ -883,82 +883,188 @@ class Manage extends DB
     }
 
 
-    // public function get_unassigned_bookings_for_auto(string $travel_date)
-    // {
-    //     // Query 1: ขาไป (Pickup ปกติ)
-    //     $query = "SELECT BO.id as bo_id, BT.id as bt_id, BP.product_id, 
-    //                      BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time, 
-    //                      HOTELP.name_th as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
-    //                      'pickup' as transfer_type,
-    //                      (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
-    //                      (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
-    //                      (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
-    //                      (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
-    //               FROM bookings BO
-    //               JOIN booking_products BP ON BO.id = BP.booking_id
-    //               JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-    //               LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
-    //               LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
-    //               LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
-    //               WHERE BP.travel_date = ? 
-    //                 AND BO.booking_status_id NOT IN (3, 4)
-    //                 AND BT.pickup_type IN (1, 3)
-    //                 AND BMT.id IS NULL
-    //                 AND BP.is_deleted = 0
 
-    //               UNION ALL
+    // ฟังก์ชันนับยอดสรุปรถที่จัดแล้ว (Assigned Summary)
+    public function get_assigned_van_summary($travel_date)
+    {
+        $query = "
+            SELECT 
+                COUNT(DISTINCT MT.id) as total_vans,
+                IFNULL((SELECT SUM(pax) FROM booking_manage_transfer WHERE manage_id IN (SELECT id FROM manage_transfer WHERE travel_date = ?)), 0) +
+                IFNULL((SELECT SUM(pax) FROM dropoff_transfers WHERE manage_id IN (SELECT id FROM manage_transfer WHERE travel_date = ?)), 0) +
+                IFNULL((SELECT SUM(pax) FROM overnight_transfers WHERE manage_id IN (SELECT id FROM manage_transfer WHERE travel_date = ?)), 0) as total_pax
+            FROM manage_transfer MT
+            WHERE MT.travel_date = ?
+        ";
 
-    //               -- Query 2: ขากลับคนละที่ (Dropoff) - ไม่รวมที่ค้างคืน
-    //               SELECT BO.id as bo_id, BT.id as bt_id, BP.product_id, 
-    //                      BT.dropoff_id as zone_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time, 
-    //                      HOTELD.name_th as hotel_name, HOTELD.lat as latitude, HOTELD.lng as longitude,
-    //                      'dropoff' as transfer_type,
-    //                      (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
-    //                      (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
-    //                      (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
-    //                      (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
-    //               FROM bookings BO
-    //               JOIN booking_products BP ON BO.id = BP.booking_id
-    //               JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-    //               LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
-    //               LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-    //               LEFT JOIN dropoff_transfers DT ON BT.id = DT.booking_transfer_id
-    //               WHERE BP.travel_date = ? 
-    //                 AND BO.booking_status_id NOT IN (3, 4)
-    //                 AND (BT.pickup_id != BT.dropoff_id OR BT.hotel_pickup_id != BT.hotel_dropoff_id OR BT.pickup_type = 3)
-    //                 AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
-    //                 AND DT.id IS NULL
-    //                 AND BP.is_deleted = 0
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("ssss", $travel_date, $travel_date, $travel_date, $travel_date);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        return $res ? $res : ['total_vans' => 0, 'total_pax' => 0];
+    }
 
-    //               UNION ALL
+    // ดึงตัวกรอง (Filter) เฉพาะรายการที่มี Booking ในวันที่เลือก
+    public function get_active_booking_filters(string $travel_date)
+    {
+        // 1. ดึง Program ที่มีลูกค้าจอง
+        $q_prod = "SELECT DISTINCT PROD.id, PROD.name, PROD.park_id 
+                   FROM booking_products BP
+                   JOIN bookings BO ON BP.booking_id = BO.id
+                   JOIN products PROD ON BP.product_id = PROD.id
+                   WHERE (BP.travel_date = '$travel_date' OR BP.overnight = '$travel_date') 
+                     AND BO.booking_status_id NOT IN (3, 4) AND BP.is_deleted = 0
+                     AND PROD.name NOT LIKE '%NO TRANSFER%'";
+        $prods = $this->connection->query($q_prod)->fetch_all(MYSQLI_ASSOC);
 
-    //               -- Query 3: ขากลับข้ามวัน (Overnight)
-    //               SELECT BO.id as bo_id, BT.id as bt_id, BP.product_id, 
-    //                      BT.dropoff_id as zone_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time, 
-    //                      HOTELD.name_th as hotel_name, HOTELD.lat as latitude, HOTELD.lng as longitude,
-    //                      'overnight' as transfer_type,
-    //                      (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
-    //                      (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
-    //                      (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
-    //                      (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
-    //               FROM bookings BO
-    //               JOIN booking_products BP ON BO.id = BP.booking_id
-    //               JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-    //               LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
-    //               LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-    //               LEFT JOIN overnight_transfers OT ON BT.id = OT.booking_transfer_id
-    //               WHERE BP.overnight = ? 
-    //                 AND BO.booking_status_id NOT IN (3, 4)
-    //                 AND OT.id IS NULL
-    //                 AND BP.is_deleted = 0";
+        // 2. ดึง Zone (ขาไปและกลับ) ที่มีลูกค้าพักอยู่
+        $q_zone = "SELECT DISTINCT Z.id, Z.name_th as name, Z.color_hex
+                   FROM booking_transfer BT
+                   JOIN booking_products BP ON BT.booking_products_id = BP.id
+                   JOIN bookings BO ON BP.booking_id = BO.id
+                   JOIN zones Z ON (BT.pickup_id = Z.id OR BT.dropoff_id = Z.id)
+                   WHERE (BP.travel_date = '$travel_date' OR BP.overnight = '$travel_date') 
+                     AND BO.booking_status_id NOT IN (3, 4) AND BP.is_deleted = 0";
+        $zones = $this->connection->query($q_zone)->fetch_all(MYSQLI_ASSOC);
 
-    //     $statement = $this->connection->prepare($query);
-    //     // Bind param 3 ตัว เพราะเราใช้ ? 3 ครั้งใน UNION
-    //     $statement->bind_param("sss", $travel_date, $travel_date, $travel_date);
-    //     $statement->execute();
-    //     $result = $statement->get_result();
-    //     return $result->fetch_all(MYSQLI_ASSOC);
-    // }
+        // 3. ดึง Park เฉพาะของ Program ที่หาเจอ
+        $park_ids = array_unique(array_column($prods, 'park_id'));
+        $parks = [];
+        if (!empty($park_ids)) {
+            $in_parks = implode(',', $park_ids);
+            $q_park = "SELECT id, name FROM park WHERE id IN ($in_parks)";
+            $parks = $this->connection->query($q_park)->fetch_all(MYSQLI_ASSOC);
+        }
+
+        return ['programs' => $prods, 'zones' => $zones, 'parks' => $parks];
+    }
+
+    // ดึงข้อมูลรถที่จัดแล้ว พร้อมรายชื่อลูกค้าข้างใน (Assigned Vans & Bookings)
+    public function get_assigned_vans_with_bookings(string $travel_date)
+    {
+        // 1. ดึงข้อมูลรถทั้งหมดในวันนั้น
+        $q_vans = "SELECT MT.id, MT.car_id, MT.driver_id, MT.seat, MT.note, MT.travel_date,
+                          C.name as car_name, D.name as driver_name, D.number_plate, D.telephone
+                   FROM manage_transfer MT
+                   LEFT JOIN cars C ON MT.car_id = C.id
+                   LEFT JOIN drivers D ON MT.driver_id = D.id
+                   WHERE MT.travel_date = ?";
+        $stmt_vans = $this->connection->prepare($q_vans);
+        $stmt_vans->bind_param("s", $travel_date);
+        $stmt_vans->execute();
+        $vans = $stmt_vans->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        // 2. ดึง Booking ยัดใส่รถแต่ละคัน
+        foreach ($vans as &$van) {
+            $manage_id = $van['id'];
+
+            // Query ดึง Booking ที่ผูกกับรถคันนี้ (รวม 3 ตารางด้วย UNION ALL)
+            $q_bookings = "
+                SELECT BMT.arrange, BMT.pax as assigned_pax, 'pickup' as transfer_type,
+                       BT.id as bt_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time,
+                       HOTELP.name as hotel_name, BT.room_no,
+                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality
+                FROM booking_manage_transfer BMT
+                JOIN booking_transfer BT ON BMT.booking_transfer_id = BT.id
+                JOIN booking_products BP ON BT.booking_products_id = BP.id
+                JOIN bookings BO ON BP.booking_id = BO.id
+                LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
+                LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+                LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
+                LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
+                WHERE BMT.manage_id = $manage_id AND BP.is_deleted = 0
+                
+                UNION ALL
+                
+                SELECT DT.arrange, DT.pax as assigned_pax, 'dropoff' as transfer_type,
+                       BT.id as bt_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time,
+                       HOTELD.name as hotel_name, BT.room_no,
+                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality
+                FROM dropoff_transfers DT
+                JOIN booking_transfer BT ON DT.booking_transfer_id = BT.id
+                JOIN booking_products BP ON BT.booking_products_id = BP.id
+                JOIN bookings BO ON BP.booking_id = BO.id
+                LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
+                LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+                LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
+                LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
+                WHERE DT.manage_id = $manage_id AND BP.is_deleted = 0
+                
+                UNION ALL
+                
+                SELECT OT.arrange, OT.pax as assigned_pax, 'overnight' as transfer_type,
+                       BT.id as bt_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time,
+                       HOTELD.name as hotel_name, BT.room_no,
+                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality
+                FROM overnight_transfers OT
+                JOIN booking_transfer BT ON OT.booking_transfer_id = BT.id
+                JOIN booking_products BP ON BT.booking_products_id = BP.id
+                JOIN bookings BO ON BP.booking_id = BO.id
+                LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
+                LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
+                LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
+                LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
+                WHERE OT.manage_id = $manage_id AND BP.is_deleted = 0
+                
+                ORDER BY arrange ASC, action_time ASC
+            ";
+
+            $van['bookings'] = $this->connection->query($q_bookings)->fetch_all(MYSQLI_ASSOC);
+
+            // คำนวณยอดคนรวม และสรุปโซน
+            $total_pax = 0;
+            $zones = [];
+            foreach ($van['bookings'] as &$b) {
+                $total_pax += $b['assigned_pax'];
+                if (!empty($b['zone_name']) && !in_array($b['zone_name'], $zones)) {
+                    $zones[] = $b['zone_name'];
+                }
+                $b['action_time'] = ($b['action_time'] != '00:00:00' && !empty($b['action_time'])) ? date('H:i', strtotime($b['action_time'])) : '-';
+            }
+            $van['total_pax'] = $total_pax;
+            $van['zones_summary'] = implode(', ', $zones);
+        }
+        return $vans;
+    }
+
+    // 🌟 ยกเลิกรถ 1 คัน และดีดลูกค้าทั้งหมดกลับไปหน้า "รอจัดรถ"
+    public function cancel_single_manage_transfer(int $manage_id)
+    {
+        if ($manage_id <= 0) return false;
+
+        // 1. ลบ Booking ที่ผูกติดกับรถคันนี้ (คิวลูกค้าจะกลับไปสถานะรอจัดรถอัตโนมัติ เพราะไม่มี manage_id ผูกแล้ว)
+        $this->connection->query("DELETE FROM booking_manage_transfer WHERE manage_id = $manage_id");
+        $this->connection->query("DELETE FROM dropoff_transfers WHERE manage_id = $manage_id");
+        $this->connection->query("DELETE FROM overnight_transfers WHERE manage_id = $manage_id");
+
+        // 2. ลบตัวรถทิ้ง
+        $stmt = $this->connection->prepare("DELETE FROM manage_transfer WHERE id = ?");
+        $stmt->bind_param("i", $manage_id);
+
+        return $stmt->execute();
+    }
+
+    // อัปเดตลำดับการรับ-ส่ง (Arrange) รองรับทั้ง 3 ตาราง
+    public function update_van_arrange(int $manage_id, int $bt_id, int $arrange, string $transfer_type)
+    {
+        $table = "";
+        // เลือกตารางเป้าหมายตามประเภทของ Booking
+        if ($transfer_type == 'pickup') {
+            $table = "booking_manage_transfer";
+        } elseif ($transfer_type == 'dropoff') {
+            $table = "dropoff_transfers";
+        } elseif ($transfer_type == 'overnight') {
+            $table = "overnight_transfers";
+        } else {
+            return false;
+        }
+
+        $query = "UPDATE {$table} SET arrange = ? WHERE manage_id = ? AND booking_transfer_id = ?";
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("iii", $arrange, $manage_id, $bt_id);
+        return $stmt->execute();
+    }
+
     // 1. ดึงข้อมูล Booking ทั้งหมด (ทั้งจัดรถแล้ว และ ยังไม่จัดรถ)
     public function get_all_transfer_bookings_for_auto(string $travel_date)
     {
@@ -1218,145 +1324,6 @@ class Manage extends DB
         // echo $query;
         $result = $this->connection->query($query);
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-
-        // $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, COMP.name as company_name,
-        //            BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time, PROD.name as product_name,
-        //            HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
-        //            'pickup' as transfer_type,
-        //            BTYE.name as booking_type_name, CATE.transfer as category_transfer,
-        //            BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, CUS.name as guest_name, 
-        //            CUS.telephone as guest_phone, NATION.name as nationality, BP.note as special_request, BO.updated_at,
-        //            (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
-        //            (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
-        //            (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
-        //            (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
-        //     FROM bookings BO
-        //     JOIN booking_products BP ON BO.id = BP.booking_id
-        //     JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-        //     LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-        //     LEFT JOIN companies COMP ON BO.company_id = COMP.id
-        //     LEFT JOIN products PROD ON BP.product_id = PROD.id
-        //     LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
-        //     LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-        //     LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-        //     LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
-        //     LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
-        //     LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
-        //     WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
-
-        // $query .= (!empty($in_zone)) ? "AND ZONE_P.id IN ($in_zone) " : "";
-
-        // $query .= " AND BO.booking_status_id NOT IN (3, 4) AND BT.pickup_type IN (1, 3) 
-        //       AND BMT.id IS NULL AND BP.is_deleted = 0
-        //     GROUP BY BT.id
-
-        //     UNION ALL
-
-        //     -- 2. ตะกร้าขากลับเปลี่ยนที่ (Dropoff)
-        //     SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name as company_name,
-        //            BT.dropoff_id, ZONE_D.name, BT.end_pickup, PROD.name as product_name,
-        //            HOTELD.name, HOTELD.lat, HOTELD.lng,
-        //            'dropoff',
-        //            BTYE.name, CATE.transfer,
-        //            BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, CUS.name, 
-        //            CUS.telephone as guest_phone, NATION.name, BP.note, BO.updated_at,
-        //            (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
-        //            (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
-        //            (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id),
-        //            (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id)
-        //     FROM bookings BO
-        //     JOIN booking_products BP ON BO.id = BP.booking_id
-        //     JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-        //     LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-        //     LEFT JOIN companies COMP ON BO.company_id = COMP.id
-        //     LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
-        //     LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-        //     LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-        //     LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
-        //     LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-        //     LEFT JOIN dropoff_transfers DT ON BT.id = DT.booking_transfer_id
-        //     WHERE BP.travel_date = '$travel_date' AND BP.product_id IN ($in_clause) ";
-
-        // $query .= (!empty($in_zone)) ? "AND ZONE_D.id IN ($in_zone) " : "";
-
-        // $query .= " AND BO.booking_status_id NOT IN (3, 4) 
-        //       AND (BT.pickup_id != BT.dropoff_id OR BT.hotel_pickup_id != BT.hotel_dropoff_id OR BT.pickup_type = 3)
-        //       AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
-        //       AND DT.id IS NULL AND BP.is_deleted = 0
-        //     GROUP BY BT.id
-
-        //     UNION ALL
-
-        //     -- 3. ตะกร้าค้างคืน (Overnight)
-        //     SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name as company_name,
-        //            BT.dropoff_id, ZONE_D.name, BT.end_pickup, PROD.name as product_name,
-        //            HOTELD.name, HOTELD.lat, HOTELD.lng,
-        //            'overnight',
-        //            BTYE.name, CATE.transfer,
-        //            BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, CUS.name, 
-        //            CUS.telephone as guest_phone, NATION.name, BP.note, BO.updated_at,
-        //            (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id),
-        //            (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id),
-        //            (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id),
-        //            (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id)
-        //     FROM bookings BO
-        //     JOIN booking_products BP ON BO.id = BP.booking_id
-        //     JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-        //     LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-        //     LEFT JOIN companies COMP ON BO.company_id = COMP.id
-        //     LEFT JOIN product_category CATE ON (SELECT category_id FROM booking_product_rates WHERE booking_products_id = BP.id LIMIT 1) = CATE.id
-        //     LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-        //     LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-        //     LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
-        //     LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-        //     LEFT JOIN overnight_transfers OT ON BT.id = OT.booking_transfer_id
-        //     WHERE BP.overnight = '$travel_date' AND BP.product_id IN ($in_clause) ";
-
-        // $query .= (!empty($in_zone)) ? "AND ZONE_D.id IN ($in_zone) " : "";
-
-        // $query .= " AND BO.booking_status_id NOT IN (3, 4) 
-        //       AND OT.id IS NULL AND BP.is_deleted = 0
-        //     GROUP BY BT.id
-        // ";
-
-        // แปลง Array ของ ID ให้เป็น String เช่น "1,2,5" เพื่อใส่ในคำสั่ง IN()
-        // $in_clause = implode(',', array_map('intval', $product_ids));
-        // if (empty($in_clause)) return []; // ถ้าไม่เลือกโปรแกรมเลย ให้คืนค่าว่าง
-
-        // $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, 
-        //                  BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time, 
-        //                  HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
-        //                  BTYE.name as booking_type_name, CATE.transfer as category_transfer,
-        //                  BT.room_no, BT.hotel_pickup, BT.transfer_type, CUS.name as guest_name, NATION.name as nationality,
-        //                  BP.note as special_request, BO.updated_at, PROD.name as programe_name,
-        //                  (SELECT SUM(adult) FROM booking_product_rates WHERE booking_products_id = BP.id) as adult,
-        //                  (SELECT SUM(child) FROM booking_product_rates WHERE booking_products_id = BP.id) as child,
-        //                  (SELECT SUM(infant) FROM booking_product_rates WHERE booking_products_id = BP.id) as infant,
-        //                  (SELECT SUM(foc) FROM booking_product_rates WHERE booking_products_id = BP.id) as foc
-        //           FROM bookings BO
-        //           JOIN booking_products BP ON BO.id = BP.booking_id
-        //           JOIN booking_transfer BT ON BP.id = BT.booking_products_id
-        //           LEFT JOIN booking_type BTYE ON BO.booking_type_id = BTYE.id
-        //           LEFT JOIN booking_product_rates BPR ON BP.id = BPR.booking_products_id
-        //           LEFT JOIN products PROD ON BP.product_id = PROD.id
-        //           LEFT JOIN product_category CATE ON BPR.category_id = CATE.id
-        //           LEFT JOIN customers CUS ON BO.id = CUS.booking_id
-        //           LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
-        //           LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
-        //           LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
-        //           LEFT JOIN booking_manage_transfer BMT ON BT.id = BMT.booking_transfer_id
-        //           WHERE BP.travel_date = ? 
-        //             AND BP.product_id IN ($in_clause) /* 🌟 อัปเดตตรงนี้ */
-        //             AND BO.booking_status_id NOT IN (3, 4)
-        //             AND BT.pickup_type IN (1, 3) /* ดึงเฉพาะขาไป */
-        //             AND BMT.id IS NULL /* ที่ยังไม่ได้จัดรถ */
-        //             AND BP.is_deleted = 0
-        //           GROUP BY BT.id";
-
-        // $statement = $this->connection->prepare($query);
-        // $statement->bind_param("s", $travel_date);
-        // $statement->execute();
-        // return $statement->get_result()->fetch_all(MYSQLI_ASSOC);
     }
 
     // 💡 ฟังก์ชันตรวจสอบความถูกต้องก่อนจัดรถ (Concurrency Control)

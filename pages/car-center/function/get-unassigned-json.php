@@ -33,7 +33,7 @@ if (isset($_POST['travel_date']) && isset($_POST['product_ids'])) {
     $bookings = $manageObj->get_waiting_pool_bookings($travel_date, $product_ids, $zone_ids);
 
     if (empty($bookings)) {
-        echo json_encode(['status' => 'success', 'data' => []]);
+        echo json_encode(['status' => 'success', 'data' => [], 'summary' => ['total_vans' => 0, 'total_pax' => 0]]);
         exit;
     }
 
@@ -103,10 +103,14 @@ if (isset($_POST['travel_date']) && isset($_POST['product_ids'])) {
         }
     }
 
+    // 🌟 ดึงข้อมูลสรุปยอดรถที่จัดแล้ว
+    $summary = $manageObj->get_assigned_van_summary($travel_date);
+
     // 3. ส่งกลับให้ Frontend
     echo json_encode([
         'status' => 'success',
-        'data' => $final_sorted_list
+        'data' => $final_sorted_list,
+        'summary' => $summary // 🌟 แนบข้อมูลสรุปกลับไปด้วย
     ]);
 } else {
     echo json_encode(['status' => 'error', 'message' => 'Missing parameters']);

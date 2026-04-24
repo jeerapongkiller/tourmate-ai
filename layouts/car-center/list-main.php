@@ -110,6 +110,62 @@
             display: flex;
             align-items: center;
         }
+
+        /* ------------------------------------- */
+        /* STYLES สำหรับหน้า Assigned Vans       */
+        /* ------------------------------------- */
+
+        .van-card {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid transparent;
+            background-color: #ffffff;
+            cursor: pointer;
+        }
+
+        .van-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
+            border-color: #e2e8f0;
+        }
+
+        /* สถานะตอนคลิกเลือกรถ */
+        .van-card.active {
+            border-color: #7367f0 !important;
+            background-color: #f3f2fd !important;
+            box-shadow: 0 4px 15px rgba(115, 103, 240, 0.2) !important;
+        }
+
+        .van-progress {
+            height: 6px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+        }
+
+        .assigned-panel-right {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .assigned-booking-item {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .assigned-booking-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .cursor-move {
+            cursor: grab;
+        }
+
+        .cursor-move:active {
+            cursor: grabbing;
+        }
     </style>
 </head>
 <!-- END: Head-->
@@ -380,21 +436,67 @@
             let waitingPoolData = []; // ข้อมูลที่โดนตัดแบ่งแล้ว (เอาไปโชว์ในตาราง)
             let maxVanCapacity = 12;
 
-            // 1. กดปุ่มดึงข้อมูลจริงจากระบบ
-            $('#btn-fetch-waiting').on('click', function() {
+            // =========================================================
+            // 🌟 ระบบค้นหาอัตโนมัติ (Auto-Search & Auto-Load)
+            // =========================================================
+
+            // 1. ฟังก์ชันดึงตัวกรองแบบ Dynamic (ตามวันที่)
+            function fetchActiveFilters(date) {
+                $.blockUI({
+                    message: 'กำลังดึงข้อมูลเส้นทางประจำวัน...'
+                });
+                $.ajax({
+                    url: 'pages/car-center/function/get-active-filters.php',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        travel_date: date
+                    },
+                    success: function(res) {
+
+                        if (typeof res === 'string') res = JSON.parse(res);
+
+                        if (res.status === 'success') {
+                            // ยัด HTML ใหม่ลงไปใน Select
+                            $('#waiting-park').html(res.html_parks);
+                            $('#waiting-programs').html(res.html_programs);
+                            $('#waiting-zones').html(res.html_zones);
+
+                            // บังคับให้ Select2 รีเฟรช UI ใหม่ให้สวยงาม
+                            $('#waiting-park, #waiting-programs, #waiting-zones').trigger('change.select2');
+
+                            // 💡 ทริค: เมื่อโหลด Filter เสร็จ ให้เลือก "ทุกโปรแกรม" อัตโนมัติ เพื่อกระตุ้นให้โหลดตารางต่อทันที
+                            let allProgramIds = [];
+                            $('#waiting-programs option').each(function() {
+                                if ($(this).val()) allProgramIds.push($(this).val());
+                            });
+
+                            // การสั่ง .trigger('change') ตรงนี้ จะไปกระตุ้นให้ fetchCarCenterData ทำงานทันที!
+                            $('#waiting-programs').val(allProgramIds).trigger('change');
+                        }
+                    },
+                    complete: function() {
+                        $.unblockUI();
+                    }
+                });
+            }
+
+            // 2. ฟังก์ชันโหลดตารางจัดรถ (เหมือนเดิม)
+            function fetchCarCenterData() {
                 let travelDate = $('#waiting-date').val();
                 let productIds = $('#waiting-programs').val();
                 let zoneIds = $('#waiting-zones').val();
 
                 if (!productIds || productIds.length === 0) {
-                    Swal.fire('แจ้งเตือน', 'กรุณาเลือกโปรแกรมทัวร์อย่างน้อย 1 โปรแกรม', 'warning');
+                    masterPoolData = [];
+                    waitingPoolData = [];
+                    renderTables();
                     return;
                 }
 
                 $.blockUI({
                     message: 'กำลังค้นหาพิกัดและเส้นทาง...'
                 });
-
                 $.ajax({
                     url: "pages/car-center/function/get-unassigned-json.php",
                     type: "POST",
@@ -402,30 +504,32 @@
                     data: {
                         travel_date: travelDate,
                         product_ids: productIds,
-                        zone_ids: zoneIds,
+                        zone_ids: zoneIds
                     },
                     success: function(res) {
-                        // console.log('Raw Response:', res);
-                        if (typeof res === 'string') {
-                            res = JSON.parse(res);
-                        }
-
+                        if (typeof res === 'string') res = JSON.parse(res);
                         if (res.status === 'success') {
-                            // 🌟 แอบเพิ่มข้อมูลพื้นฐานให้ JSON ดิบ และแก้ปัญหา ID ซ้ำกัน
                             let processedData = res.data.map(b => {
-                                let uniqueUI_ID = b.bt_id + '_' + b.transfer_type_tag; // สร้าง ID ไม่ให้ซ้ำ (เช่น 7_pickup, 7_dropoff)
+                                let uniqueUI_ID = b.bt_id + '_' + b.transfer_type_tag; // สร้าง ID หลอกให้หน้าจอ เพื่อไม่ให้ Checkbox ชนกัน
                                 return {
                                     ...b,
-                                    db_bt_id: b.bt_id, // 🌟 เก็บ ID แท้ๆ ไว้ส่งให้ Database ตอน Save
-                                    bt_id: uniqueUI_ID, // หลอกหน้าบ้านให้ใช้ ID ที่ไม่ซ้ำกัน Checkbox จะได้ไม่รวน
-                                    original_bt_id: uniqueUI_ID, // สำหรับระบบ Merge
-                                    base_guest_name: b.guest_name, // จำชื่อแท้ไว้
+                                    db_bt_id: b.bt_id, // 🌟 เก็บ ID แท้จาก Database ตรงนี้!
+                                    bt_id: uniqueUI_ID,
+                                    original_bt_id: uniqueUI_ID,
+                                    base_guest_name: b.guest_name,
                                     is_split: false
                                 };
                             });
 
                             masterPoolData = JSON.parse(JSON.stringify(processedData));
                             waitingPoolData = JSON.parse(JSON.stringify(processedData));
+
+                            let totalWaitingPax = processedData.reduce((sum, b) => sum + parseInt(b.pax_total), 0);
+                            $('#join-tab .badge').text(`(${totalWaitingPax} คน)`);
+
+                            if (res.summary) {
+                                $('#private-tab .badge').text(`(${res.summary.total_vans} คัน / ${res.summary.total_pax} คน)`);
+                            }
 
                             renderTables();
                         }
@@ -434,7 +538,127 @@
                         $.unblockUI();
                     }
                 });
+            }
+
+            // 🎨 ฟังก์ชันคำนวณสีตัวหนังสือให้ตัดกับสีพื้นหลัง (ดำ/ขาว)
+            function getContrastYIQ(hexcolor) {
+                if (!hexcolor) return '#1f2937';
+                hexcolor = hexcolor.replace("#", "");
+                var r = parseInt(hexcolor.substr(0, 2), 16);
+                var g = parseInt(hexcolor.substr(2, 2), 16);
+                var b = parseInt(hexcolor.substr(4, 2), 16);
+                var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+                return (yiq >= 128) ? '#1f2937' : '#ffffff'; // สว่าง=อักษรดำ, มืด=อักษรขาว
+            }
+
+            // 🎨 ฟังก์ชันวาดสีให้ Dropdown Zone (รายการที่กางออก)
+            function formatZoneResult(zone) {
+                if (!zone.id) return zone.text; // สำหรับหัวข้อ Optgroup
+                let color = $(zone.element).data('color') || '#ccc';
+                let textColor = getContrastYIQ(color);
+
+                let $el = $(`<span style="font-weight:600;">${zone.text}</span>`);
+
+                // ใช้ setTimeout เพื่อแทรกแซงสี CSS ของตัวเลือก (<li>) ให้กลายเป็นแผงสีเต็มๆ
+                setTimeout(function() {
+                    let $li = $el.closest('.select2-results__option');
+                    $li.css({
+                        'background-color': color,
+                        'color': textColor,
+                        'border-bottom': '1px solid #fff',
+                        'margin-top': '2px',
+                        'border-radius': '4px'
+                    });
+                    // ลบ hover สีทองทิ้งเวลาเอาเมาส์ชี้ เพื่อให้คงสีของโซนไว้
+                    $li.hover(
+                        function() {
+                            $(this).css('background-color', color);
+                        },
+                        function() {
+                            $(this).css('background-color', color);
+                        }
+                    );
+                }, 0);
+
+                return $el;
+            }
+
+            // 🎨 ฟังก์ชันวาดสีให้ Tag ที่ถูกเลือก (บนช่องค้นหา)
+            function formatZoneSelection(zone) {
+                if (!zone.id) return zone.text;
+
+                // ดึงค่าสีจาก Database ถ้าไม่มีให้ใช้สีเทาเป็นค่าเริ่มต้น
+                let color = $(zone.element).data('color') || '#82868b';
+                let textColor = getContrastYIQ(color); // คำนวณสีตัวอักษร ขาว/ดำ อัตโนมัติ
+
+                // วาด HTML ของ Tag โดยเพิ่มจุดสีเล็กๆ (Opacity 0.6) ไว้หน้าข้อความ เหมือนในรูปตัวอย่าง
+                let $el = $(`
+                    <span style="font-weight:600; display:flex; align-items:center;">
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:${textColor}; margin-right:6px; opacity:0.6;"></span>
+                        ${zone.text}
+                    </span>
+                `);
+
+                // แทรกแซงสีพื้นหลังด้วย JS Native เพื่อบังคับใส่ !important ทับ Theme เดิม
+                setTimeout(function() {
+                    // หากล่อง Tag ที่ครอบตัวมันอยู่
+                    let $choice = $el.closest('.select2-selection__choice');
+
+                    if ($choice.length > 0) {
+                        // บังคับเปลี่ยนสีพื้นหลังและกรอบ พร้อมใส่ !important
+                        $choice[0].style.setProperty('background-color', color, 'important');
+                        $choice[0].style.setProperty('border-color', color, 'important');
+                        $choice[0].style.setProperty('color', textColor, 'important');
+
+                        // ปรับสีปุ่มกากบาท (x) ให้กลืนกับตัวหนังสือ
+                        let $removeBtn = $choice.find('.select2-selection__choice__remove');
+                        if ($removeBtn.length > 0) {
+                            $removeBtn[0].style.setProperty('color', textColor, 'important');
+                        }
+                    }
+                }, 10); // หน่วงเวลา 10ms ให้ชัวร์ว่า Select2 สร้างกล่องใน DOM เสร็จแล้ว
+
+                return $el;
+            }
+
+            // สั่งเปิดใช้งาน สี ให้กับช่องรอจัดรถ-โซน
+            $('#waiting-zones').select2({
+                placeholder: 'Select ...',
+                templateResult: formatZoneResult,
+                templateSelection: formatZoneSelection
             });
+
+            // 3. ดักจับเมื่อ "วันที่" เปลี่ยนแปลง ➡️ ให้ไปโหลด Filter ใหม่
+            $('#waiting-date').on('change', function() {
+                fetchActiveFilters($(this).val());
+            });
+
+            // 4. ดักจับเมื่อ "โปรแกรม" หรือ "โซน" เปลี่ยนแปลง ➡️ ให้ไปโหลดตารางจัดรถ
+            $('#waiting-programs, #waiting-zones').on('change', function(e) {
+                // ป้องกันไม่ให้ trigger ทำงานซ้ำซ้อนตอนที่เรากำลัง load html
+                if (e.namespace !== 'select2') {
+                    fetchCarCenterData();
+                }
+            });
+
+            // 5. Auto-load ตอนเปิดหน้าเว็บครั้งแรก (หน่วงเวลา 0.3 วิ)
+            setTimeout(function() {
+                fetchActiveFilters($('#waiting-date').val());
+            }, 300);
+
+            // 3. Auto-load ตอนเปิดหน้าเว็บครั้งแรก
+            // 💡 ทริค: เพื่อให้ระบบค้นหาข้อมูลของ "วันนี้" ได้ทันที เราจะสั่งให้มัน 
+            // "เลือกทุกโปรแกรม (Select All)" ให้อัตโนมัติ แล้วมันจะวิ่งไปค้นหาให้เองเลย
+            setTimeout(function() {
+                let allProgramIds = [];
+                $('#waiting-programs option').each(function() {
+                    if ($(this).val()) allProgramIds.push($(this).val());
+                });
+
+                // ยัดค่า ID ทั้งหมดลงไป แล้วสั่ง trigger('change') 
+                // ซึ่งมันจะไปกระตุ้นให้ event ในข้อ 2 ทำงานโดยอัตโนมัติ
+                $('#waiting-programs').val(allProgramIds).trigger('change');
+            }, 300); // หน่วงเวลาเล็กน้อย 0.3 วิ ให้หน้าจอ Render UI เสร็จก่อน
 
             // ---------------------------------------------------------
             // 3. วาดตาราง (Render Tables)
@@ -467,11 +691,12 @@
                     else if (b.transfer_type_tag === 'overnight') typeBadge = '<span class="badge badge-light-info ml-50">Overnight</span>';
 
                     // HTML ของแต่ละ Row
+                    let isChecked = activeBuilderOrder.includes(b.bt_id) ? 'checked' : '';
                     let tr = `
                         <tr id="row-${b.bt_id}">
                             <td class="text-center">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input chk-booking" id="chk-${b.bt_id}" data-id="${b.bt_id}">
+                                    <input type="checkbox" class="custom-control-input chk-booking" id="chk-${b.bt_id}" data-id="${b.bt_id}" ${isChecked}>
                                     <label class="custom-control-label" for="chk-${b.bt_id}"></label>
                                 </div>
                             </td>
@@ -547,9 +772,20 @@
             }
 
             // ---------------------------------------------------------
-            // 4. การคำนวณฝั่งขวา (Active Van Builder) แบบ Real-time
+            // 4. การคำนวณฝั่งขวา (Active Van Builder) แบบ Drag & Drop
             // ---------------------------------------------------------
+            let activeBuilderOrder = []; // 🌟 เก็บ ID ตามลำดับที่ถูกเลือก/จัดเรียง
+            let builderDragulaInst = null;
+
             $(document).on('change', '.chk-booking', function() {
+                let id = $(this).data('id');
+                if ($(this).is(':checked')) {
+                    // ถ้าติ๊กเลือก ให้ดันเข้า Array ลำดับล่าสุด
+                    if (!activeBuilderOrder.includes(id)) activeBuilderOrder.push(id);
+                } else {
+                    // ถ้าเอาติ๊กออก ให้ถอดจาก Array
+                    activeBuilderOrder = activeBuilderOrder.filter(item => item !== id);
+                }
                 updateVanBuilderPanel();
             });
 
@@ -557,23 +793,35 @@
                 let totalPax = 0;
                 let selectedHtml = '';
 
-                // หา checkbox ที่ถูกติ๊กทั้งหมด (ไม่ว่าจะอยู่ Tab ไหน)
-                $('.chk-booking:checked').each(function() {
-                    let id = $(this).data('id');
-                    // ค้นหาข้อมูลเต็มจากตัวแปรหลัก
-                    let b = waitingPoolData.find(x => x.bt_id == id);
+                // ล้าง Array กรณีที่บาง Booking โดนฟิลเตอร์หายไป
+                activeBuilderOrder = activeBuilderOrder.filter(id => waitingPoolData.find(x => x.bt_id == id));
 
+                // 🌟 วาด HTML ฝั่งขวา ตามลำดับของ Array activeBuilderOrder
+                activeBuilderOrder.forEach(function(id, index) {
+                    let b = waitingPoolData.find(x => x.bt_id == id);
                     if (b) {
                         totalPax += parseInt(b.pax_total);
+                        let seqNum = index + 1;
 
-                        // สร้างกล่อง Card เล็กๆ ด้านขวา
                         selectedHtml += `
-                    <div class="selected-booking-item ${totalPax > maxVanCapacity ? 'border-danger' : ''}">
-                        <i data-feather="check-circle" class="text-success mr-50" width="16" height="16"></i> 
-                        ${b.hotel_name} - ${b.guest_name} 
-                        <span class="badge badge-light-secondary ml-auto">${b.pax_total} Pax</span>
-                    </div>
-                `;
+                        <div class="selected-booking-item cursor-move ${totalPax > maxVanCapacity ? 'border-danger' : ''}" data-id="${b.bt_id}">
+                            <div class="d-flex w-100 align-items-start">
+                                <i data-feather="move" class="text-muted mr-50 mt-25"></i>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between mb-25">
+                                        <b class="text-dark"><span class="seq-num">${seqNum}.</span> ${b.hotel_name || '-'}</b>
+                                        <span class="badge badge-light-secondary ml-auto">${b.pax_total} Pax</span>
+                                    </div>
+                                    <div class="small text-muted d-flex align-items-center">
+                                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${b.color_hex || '#ccc'}; margin-right:6px;"></span>
+                                        <span class="text-truncate" style="max-width: 200px;" title="${b.zone_name}">
+                                            ${b.zone_name} • ${b.guest_name}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        `;
                     }
                 });
 
@@ -581,19 +829,57 @@
                 let remaining = maxVanCapacity - totalPax;
                 $('.pax-counter-text.text-primary').html(`${totalPax}<span style="font-size:1.5rem;" class="text-secondary">/${maxVanCapacity}</span>`);
 
-                // ควบคุมสีของการแจ้งเตือน Remaining
                 let remSpan = $('.pax-counter-text').last();
                 if (remaining < 0) {
                     remSpan.removeClass('text-success').addClass('text-danger font-weight-bolder').text(remaining);
-                    $('#btn-assign-van').prop('disabled', true); // ปิดปุ่ม Assign ถ้าคนล้น
+                    $('#btn-assign-van').prop('disabled', true);
                 } else {
                     remSpan.removeClass('text-danger font-weight-bolder').addClass('text-success').text(remaining);
-                    $('#btn-assign-van').prop('disabled', false); // เปิดปุ่ม
+                    $('#btn-assign-van').prop('disabled', false);
                 }
 
-                // ยัดรายการที่เลือกลงกล่อง
-                $('.flex-grow-1.overflow-auto').html(selectedHtml);
+                // ยัดลงกล่อง
+                // $('#builder-booking-list').html(selectedHtml);
+                // if (feather) feather.replace();
+
+                // 🌟 ผูกระบบ Drag & Drop ด้วย Dragula
+                // if (builderDragulaInst) builderDragulaInst.destroy();
+                // builderDragulaInst = dragula([document.getElementById('builder-booking-list')], {
+                //     moves: function(el, container, handle) {
+                //         return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
+                //     }
+                // }).on('drop', function() {
+                //     // เมื่อลากวางเสร็จ ให้จดจำลำดับ Array ใหม่
+                //     activeBuilderOrder = [];
+                //     $('#builder-booking-list .selected-booking-item').each(function(index) {
+                //         activeBuilderOrder.push($(this).data('id'));
+                //         $(this).find('.seq-num').text((index + 1) + "."); // อัปเดตตัวเลขหน้าจอให้สวยงาม
+                //     });
+                //     // สั่งวาดใหม่เพื่อเช็คสีเส้นแดงขอบกล่อง (กรณีคนล้น) ให้อยู่ถูกที่
+                //     updateVanBuilderPanel();
+                // });
+
+                // ยัดลงกล่อง
+                $('#builder-booking-list').html(selectedHtml);
                 if (feather) feather.replace();
+
+                // 🌟 ผูกระบบ Drag & Drop (แก้บั๊ก: สร้างแค่ครั้งเดียว ไม่ต้อง destroy)
+                if (!builderDragulaInst) {
+                    builderDragulaInst = dragula([document.getElementById('builder-booking-list')], {
+                        moves: function(el, container, handle) {
+                            return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
+                        }
+                    }).on('drop', function() {
+                        // เมื่อลากวางเสร็จ ให้จดจำลำดับ Array ใหม่
+                        activeBuilderOrder = [];
+                        $('#builder-booking-list .selected-booking-item').each(function(index) {
+                            activeBuilderOrder.push($(this).data('id'));
+                            $(this).find('.seq-num').text((index + 1) + "."); // อัปเดตตัวเลขหน้าจอให้สวยงาม
+                        });
+                        // สั่งวาดใหม่เพื่อเช็คสีเส้นแดงขอบกล่อง (กรณีคนล้น) ให้อยู่ถูกที่
+                        updateVanBuilderPanel();
+                    });
+                }
             }
 
             // ---------------------------------------------------------
@@ -723,13 +1009,13 @@
 
                 // 1. ดึงข้อมูลรายการที่กำลังติ๊กเลือกอยู่
                 let selectedBookings = [];
-                $('.chk-booking:checked').each(function() {
+                $('#builder-booking-list .selected-booking-item').each(function() {
                     let id = $(this).data('id');
                     let b = waitingPoolData.find(x => x.bt_id == id);
                     if (b) {
                         selectedBookings.push({
-                            bt_id: b.db_bt_id, // 🌟 ใช้ db_bt_id ที่เป็นเลข 7 เพียวๆ ส่งกลับให้ Database
-                            transfer_type: b.transfer_type_tag, // pickup, dropoff, overnight
+                            bt_id: b.db_bt_id,
+                            transfer_type: b.transfer_type_tag,
                             updated_at: b.updated_at,
                             adult: b.adult,
                             child: b.child,
@@ -742,7 +1028,7 @@
                 // 2. จัดเตรียม Payload ส่งไปให้ PHP
                 let payload = {
                     action: 'assign_van',
-                    travel_date: '2026-04-10', // ดึงจากค่าบนจอ
+                    travel_date: $('#waiting-date').val() || '',
                     product_id: 1, // ดึงจาก Dropdown
                     car_id: $('#van-waiting').val() || 0,
                     seat: $('#van-waiting option:selected').attr('data-seat') || 12,
@@ -758,7 +1044,6 @@
                     contentType: 'application/json',
                     data: JSON.stringify(payload),
                     success: function(res) {
-                        // console.log(res);
                         if (res.failed_count > 0) {
                             // มี Error บางรายการ (Partial Success)
                             let errorHtml = '<ul>';
@@ -774,7 +1059,7 @@
                                 confirmButtonText: 'รับทราบ (รีเฟรชหน้าจอ)'
                             }).then(() => {
                                 // โหลดตารางซ้ายมือใหม่ (เพื่อลบใบที่มีปัญหาออก)
-                                $('#btn-fetch-waiting').trigger('click');
+                                fetchCarCenterData();
                             });
                         } else {
                             // สำเร็จ 100%
@@ -785,7 +1070,7 @@
                                 timer: 1500
                             }).then(() => {
                                 // 🌟 สั่งให้จำลองการกดปุ่ม "ค้นหา" เพื่อรีเฟรชข้อมูลอัตโนมัติ
-                                $('#btn-fetch-waiting').trigger('click');
+                                fetchCarCenterData();
                             });
                         }
                     }
@@ -835,6 +1120,307 @@
 
                 // 4. สั่ง Trigger Change เพื่อให้ปลั๊กอิน Select2 อัปเดตหน้าจอ (สำคัญมาก)
                 $programSelect.trigger('change');
+            });
+
+            // ---------------------------------------------------------
+            // Interaction สำหรับคลิกเลือก Van Card
+            // ---------------------------------------------------------
+            $(document).on('click', '.van-card', function() {
+                // เอา class active ออกจากทุกการ์ด
+                $('.van-card').removeClass('active');
+                // ใส่ class active ให้การ์ดที่ถูกคลิก
+                $(this).addClass('active');
+
+                // TODO: ดึง ID ของรถคันนี้ไป Query ข้อมูลรายชื่อลูกค้ามาแสดงฝั่งขวา
+                // let manageId = $(this).data('manage-id');
+                // fetchAssignedVanDetails(manageId);
+            });
+
+            // =========================================================
+            // 🚐 ระบบจัดการหน้า "จัดรถแล้ว (Assigned Vans)" & Drag and Drop
+            // =========================================================
+            let assignedVansData = [];
+            let currentSelectedManageId = null;
+            let dragulaInst = null; // ตัวแปรเก็บ Instance ของ Drag & Drop
+
+            // 1. ฟังก์ชันดึงข้อมูลรถที่จัดแล้วทั้งหมด
+            function fetchAssignedVans() {
+                let travelDate = $('#waiting-date').val();
+                $.ajax({
+                    url: "pages/car-center/function/get-assigned-vans.php",
+                    type: "POST",
+                    dataType: "json",
+                    data: {
+                        travel_date: travelDate
+                    },
+                    success: function(res) {
+                        if (res.status === 'success') {
+                            assignedVansData = res.data;
+                            renderAssignedVansGrid();
+                        }
+                    }
+                });
+            }
+
+            // 2. ฟังก์ชันวาด Card รถ ฝั่งซ้าย
+            function renderAssignedVansGrid() {
+                let html = '';
+                assignedVansData.forEach((van, index) => {
+                    let isFull = van.total_pax >= van.seat;
+                    let progressPct = (van.total_pax / van.seat) * 100;
+                    if (progressPct > 100) progressPct = 100; // กันหลอดทะลุ
+
+                    let statusHtml = isFull ? `<small class="text-danger font-weight-bold">เต็มแล้ว</small>` : `<small class="text-muted">ว่าง ${van.seat - van.total_pax} ที่นั่ง</small>`;
+                    let pBarClass = isFull ? 'progress-bar-danger' : 'progress-bar-primary';
+
+                    // ถ้าไม่มีคันไหนถูกเลือกเลย ให้ Auto-select คันแรก
+                    if (!currentSelectedManageId && index === 0) currentSelectedManageId = van.id;
+                    let activeClass = (currentSelectedManageId == van.id) ? 'active' : '';
+
+                    html += `
+                        <div class="col-xl-4 col-sm-6 mb-2">
+                            <div class="card van-card ${activeClass} shadow-sm h-100" data-manage-id="${van.id}">
+                                <div class="card-body p-1 d-flex flex-column">
+                                    <div class="d-flex justify-content-start align-items-center mb-1">
+                                        <div class="avatar ${isFull ? 'bg-light-danger' : 'bg-light-primary'} p-50 mr-1">
+                                            <div class="avatar-content"><i data-feather="truck" class="font-medium-5"></i></div>
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-0 font-weight-bolder">${van.car_name || 'รถเสริม'} <span class="${isFull ? 'text-danger' : 'text-warning'}">[${van.total_pax}/${van.seat}]</span></h5>
+                                            ${statusHtml}
+                                        </div>
+                                    </div>
+                                    <div class="mb-1 small">
+                                        <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>${van.driver_name || 'ไม่ระบุ'}</b></div>
+                                        <div class="text-truncate" title="${van.zones_summary}"><i data-feather="map-pin" width="12"></i> โซน: <b>${van.zones_summary || '-'}</b></div>
+                                    </div>
+                                    <div class="progress ${pBarClass} van-progress mb-1">
+                                        <div class="progress-bar" role="progressbar" style="width: ${progressPct}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                $('#assigned-van-grid').html(html);
+                if (feather) feather.replace();
+
+                // วาดรายละเอียดฝั่งขวาตามรถที่ถูกเลือก
+                renderAssignedVanDetails();
+            }
+
+            // 3. คลิกเปลี่ยนรถ (เปลี่ยนการ์ดสีม่วง)
+            $(document).on('click', '.van-card', function() {
+                $('.van-card').removeClass('active');
+                $(this).addClass('active');
+                currentSelectedManageId = $(this).data('manage-id');
+                renderAssignedVanDetails();
+            });
+
+            // 4. ฟังก์ชันวาดคิวรถฝั่งขวา และเปิดโหมด Drag & Drop
+            function renderAssignedVanDetails() {
+                let van = assignedVansData.find(v => v.id == currentSelectedManageId);
+                if (!van) {
+                    $('.assigned-panel-right').hide();
+                    return;
+                }
+                $('.assigned-panel-right').show();
+
+                // สรุปข้อมูล Header
+                $('.assigned-panel-right h4 span:first').text(`ข้อมูลสรุป ${van.car_name || 'รถเสริม'}`);
+                $('.assigned-panel-right h4 span.badge').text(`${van.total_pax}/${van.seat}`);
+                $('.assigned-panel-right .small').html(`
+                    <div><b>ผู้ขับ:</b> ${van.driver_name || '-'} (${van.telephone || '-'})</div>
+                    <div><b>โซนหลัก:</b> ${van.zones_summary || '-'}</div>
+                `);
+
+                // วาดรายชื่อลูกค้า
+                let listHtml = '';
+                van.bookings.forEach((b, idx) => {
+                    let typeBadge = '';
+                    if (b.transfer_type === 'dropoff') typeBadge = '<span class="badge badge-light-danger ml-50">Dropoff</span>';
+                    else if (b.transfer_type === 'overnight') typeBadge = '<span class="badge badge-light-info ml-50">Overnight</span>';
+
+                    listHtml += `
+                        <div class="assigned-booking-item mb-1 cursor-move" data-btid="${b.bt_id}" data-type="${b.transfer_type}">
+                            <div class="d-flex align-items-start">
+                                <i data-feather="move" class="text-muted mr-50 mt-25"></i>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between">
+                                        <b class="text-dark"><span class="seq-num">${idx + 1}</span>. ${b.hotel_name || '-'} ${typeBadge}</b>
+                                        <span class="badge badge-light-secondary">${b.assigned_pax} Pax</span>
+                                    </div>
+                                    <div class="small text-muted">${b.guest_name} (${b.nationality || '-'}) • Rm: ${b.room_no || '-'}</div>
+                                    <div class="small text-muted"><i data-feather="clock" width="10"></i> ${b.action_time}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // $('#assigned-booking-list').html(listHtml);
+                // if (feather) feather.replace();
+
+                // // 🌟 เปิดระบบ Drag & Drop ด้วย Dragula.js
+                // if (dragulaInst) dragulaInst.destroy(); // ลบของเก่าก่อนสร้างใหม่
+                // dragulaInst = dragula([document.getElementById('assigned-booking-list')], {
+                //     moves: function(el, container, handle) {
+                //         return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
+                //     }
+                // }).on('drop', function() {
+                //     // เมื่อลากวางเสร็จ ให้รันตัวเลข 1,2,3... ใหม่ให้สวยงาม
+                //     $('#assigned-booking-list .assigned-booking-item').each(function(index) {
+                //         $(this).find('.seq-num').text(index + 1);
+                //     });
+                // });
+
+                $('#assigned-booking-list').html(listHtml);
+                if (feather) feather.replace();
+
+                // 🌟 เปิดระบบ Drag & Drop ด้วย Dragula.js (แก้บั๊ก: สร้างแค่ครั้งเดียว)
+                if (!dragulaInst) {
+                    dragulaInst = dragula([document.getElementById('assigned-booking-list')], {
+                        moves: function(el, container, handle) {
+                            return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
+                        }
+                    }).on('drop', function() {
+                        // เมื่อลากวางเสร็จ ให้รันตัวเลข 1,2,3... ใหม่ให้สวยงาม
+                        $('#assigned-booking-list .assigned-booking-item').each(function(index) {
+                            $(this).find('.seq-num').text(index + 1);
+                        });
+                    });
+                }
+            }
+
+            // 5. ดักจับเมื่อกดสลับ Tab ไปที่ "จัดรถแล้ว" ให้โหลดข้อมูล
+            $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+                if ($(e.target).attr('id') === 'private-tab') { // id="private-tab" คือแท็บจัดรถแล้วของคุณ
+                    currentSelectedManageId = null; // รีเซ็ตเพื่อดึงคันแรกใหม่
+                    fetchAssignedVans();
+                }
+            });
+
+            // ---------------------------------------------------------
+            // 💾 6. บันทึกการลากสลับคิว (Save Drag & Drop Arrange)
+            // ---------------------------------------------------------
+            $('#btn-save-arrange').on('click', function() {
+                if (!currentSelectedManageId) return; // ถ้าไม่ได้เลือกรถอยู่ ให้ข้ามไป
+
+                let reorderedBookings = [];
+
+                // วนลูปอ่านค่าจากหน้าจอ (จากบนลงล่าง ตามที่ผู้ใช้ลากสลับแล้ว)
+                $('#assigned-booking-list .assigned-booking-item').each(function(index) {
+                    let arrangeNum = index + 1; // ลำดับ 1, 2, 3...
+                    let btId = $(this).data('btid'); // ID ของ Booking
+                    let transferType = $(this).data('type'); // ประเภท pickup, dropoff, overnight
+
+                    reorderedBookings.push({
+                        arrange: arrangeNum,
+                        bt_id: btId,
+                        transfer_type: transferType
+                    });
+                });
+
+                if (reorderedBookings.length === 0) return;
+
+                $.blockUI({
+                    message: 'กำลังบันทึกคิว...'
+                });
+
+                // ยิง API บันทึกข้อมูล
+                $.ajax({
+                    url: 'pages/car-center/function/save-arrange.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        manage_id: currentSelectedManageId,
+                        bookings: reorderedBookings
+                    }),
+                    success: function(res) {
+                        if (typeof res === 'string') res = JSON.parse(res);
+                        if (res.status === 'success') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'บันทึกคิวเรียบร้อย!',
+                                showConfirmButton: false,
+                                timer: 1500
+                            }).then(() => {
+                                // โหลดข้อมูลใหม่ เพื่อให้ UI ดึงข้อมูลที่เรียงลำดับใหม่จาก DB มาแสดง (อัปเดตเวลาด้วย)
+                                fetchAssignedVans();
+                            });
+                        } else {
+                            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกคิวได้ กรุณาลองใหม่', 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'ติดต่อเซิร์ฟเวอร์ไม่ได้', 'error');
+                    },
+                    complete: function() {
+                        $.unblockUI();
+                    }
+                });
+            });
+
+            // ---------------------------------------------------------
+            // 🗑️ 7. ดีดออก (Remove Van & Unassign Bookings)
+            // ---------------------------------------------------------
+            $('#btn-remove-van').on('click', function() {
+                if (!currentSelectedManageId) return;
+
+                Swal.fire({
+                    title: 'ยืนยันการดีดออก?',
+                    text: "ระบบจะทำการลบรถคันนี้ทิ้ง และลูกค้าทั้งหมดจะถูกส่งกลับไปที่ตะกร้า 'รอจัดรถ'",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#ea5455', // สีแดง
+                    cancelButtonColor: '#82868b',
+                    confirmButtonText: 'ใช่, ดีดออกเลย!',
+                    cancelButtonText: 'ยกเลิก'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.blockUI({
+                            message: 'กำลังคืนคิวลูกค้า...'
+                        });
+
+                        $.ajax({
+                            url: 'pages/car-center/function/remove-van.php',
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                manage_id: currentSelectedManageId
+                            }),
+                            success: function(res) {
+                                if (typeof res === 'string') res = JSON.parse(res);
+                                if (res.status === 'success') {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'ดีดออกเรียบร้อย!',
+                                        showConfirmButton: false,
+                                        timer: 1500
+                                    }).then(() => {
+                                        // 1. รีเซ็ต ID รถที่ถูกเลือก
+                                        currentSelectedManageId = null;
+
+                                        // 2. รีเฟรชฝั่งรถที่จัดแล้ว (รถคันนั้นจะหายไปจากหน้าจอ)
+                                        fetchAssignedVans();
+
+                                        // 3. รีเฟรชฝั่งรอจัดรถแบบเงียบๆ (เพื่ออัปเดตตัวเลขคนรอบน Tab ใหม่ให้ถูกต้อง)
+                                        fetchCarCenterData();
+                                    });
+                                } else {
+                                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถดีดออกได้', 'error');
+                                }
+                            },
+                            error: function() {
+                                Swal.fire('Error', 'ติดต่อเซิร์ฟเวอร์ไม่ได้', 'error');
+                            },
+                            complete: function() {
+                                $.unblockUI();
+                            }
+                        });
+                    }
+                });
             });
         });
     </script>

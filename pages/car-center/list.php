@@ -231,6 +231,16 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                         <div class="col-md-4">
                             <div class="van-builder-panel p-2 h-100 d-flex flex-column">
 
+                                <input type="hidden" id="builder-manage-id" value="0">
+                                <input type="hidden" id="builder-base-pax" value="0">
+
+                                <div id="append-mode-alert" class="alert alert-warning d-none p-1 mb-1" style="border: 1px solid #ff9f43;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-dark"><i data-feather="info" class="text-warning"></i> <b>โหมดเติมคน:</b> <span id="append-van-name">รถ V02</span></span>
+                                        <i data-feather="x" class="cursor-pointer text-danger" id="btn-cancel-append" title="ยกเลิกการเติม"></i>
+                                    </div>
+                                </div>
+
                                 <div class="row text-center mb-2">
                                     <div class="col-6 border-right">
                                         <span class="d-block text-muted small font-weight-bold">PAX COUNTER</span>
@@ -278,9 +288,6 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                     <button type="button" class="btn btn-success btn-block btn-lg mb-1 font-weight-bold shadow-sm" id="btn-assign-van">
                                         <i data-feather="check"></i> ASSIGN CAR
                                     </button>
-                                    <!-- <button type="button" class="btn btn-outline-secondary btn-block font-weight-bold">
-                                        <i data-feather="x"></i> CLEAR SELECTION
-                                    </button> -->
                                 </div>
 
                             </div>
@@ -376,6 +383,7 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                             </div>
                         </div>
 
+
                         <div class="col-md-4">
                             <div class="assigned-panel-right p-2 h-100 d-flex flex-column">
 
@@ -440,6 +448,10 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                 </div>
 
                                 <div class="mt-auto">
+                                    <button type="button" class="btn btn-warning btn-block mb-1 font-weight-bold btn-append-van">
+                                        <i data-feather="plus-circle"></i> เติมลูกค้าเพิ่มเข้าคันนี้
+                                    </button>
+
                                     <button type="button" class="btn btn-outline-primary btn-block mb-1 font-weight-bold" id="btn-save-arrange">
                                         <i data-feather="shuffle"></i> บันทึกการสลับคิว
                                     </button>
@@ -500,6 +512,55 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">ยกเลิก</button>
                     <button type="button" class="btn btn-primary" id="btn-confirm-split">ยืนยันการแบ่ง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade text-left" id="modal-edit-van" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
+            <div class="modal-content border-primary">
+                <div class="modal-header bg-light-primary">
+                    <h5 class="modal-title text-primary"><i data-feather="edit"></i> แก้ไขข้อมูลรถ</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-manage-id" value="">
+
+                    <div class="form-group">
+                        <label>ยานพาหนะ (Van)</label>
+                        <select class="form-control" id="edit-van-car">
+                            <option value="0">Select Cars ...</option>
+                            <?php
+                            $cars = $manageObj->showcars();
+                            foreach ($cars as $car) {
+                                echo "<option value='{$car['id']}' data-seat='{$car['capacity']}'>{$car['name']}</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>ผู้ขับ (Driver)</label>
+                        <select class="form-control" id="edit-van-driver">
+                            <option value="0">Select Driver ...</option>
+                            <?php
+                            $drivers = $manageObj->showdrivers();
+                            foreach ($drivers as $driver) {
+                                echo "<option value='{$driver['id']}'>{$driver['name']}</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>จำนวนที่นั่ง (Max Seats)</label>
+                        <input type="number" class="form-control" id="edit-van-seat" min="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-edit-van">บันทึก</button>
                 </div>
             </div>
         </div>

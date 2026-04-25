@@ -1405,6 +1405,51 @@ class Manage extends DB
         $stmt->bind_param("iii", $pax, $manage_id, $bt_id);
         return $stmt->execute();
     }
+
+    // 🌟 ฟังก์ชันอัปเดตข้อมูลรถ/คนขับ (Edit Van Info)
+    public function update_manage_transfer_info(int $manage_id, int $car_id, int $driver_id, int $seat)
+    {
+        $query = "UPDATE manage_transfer SET car_id = ?, driver_id = ?, seat = ? WHERE id = ?";
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("iiii", $car_id, $driver_id, $seat, $manage_id);
+        return $stmt->execute();
+    }
+
+    // 🗑️ ฟังก์ชันเอาลูกค้าออกเฉพาะบางราย (Partial Remove)
+    public function remove_booking_from_van(int $manage_id, int $bt_id, string $transfer_type)
+    {
+        $table = "";
+        if ($transfer_type == 'pickup') {
+            $table = "booking_manage_transfer";
+        } elseif ($transfer_type == 'dropoff') {
+            $table = "dropoff_transfers";
+        } elseif ($transfer_type == 'overnight') {
+            $table = "overnight_transfers";
+        } else {
+            return false;
+        }
+
+        $query = "DELETE FROM {$table} WHERE manage_id = ? AND booking_transfer_id = ?";
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("ii", $manage_id, $bt_id);
+        return $stmt->execute();
+    }
+
+    // 🌟 ฟังก์ชันหาค่า Arrange (คิว) ล่าสุดของรถคันนั้น เพื่อใช้สำหรับโหมด "เติมคน"
+    public function get_max_arrange(int $manage_id)
+    {
+        $query = "SELECT MAX(a) as max_arr FROM (
+                    SELECT MAX(arrange) as a FROM booking_manage_transfer WHERE manage_id = ?
+                    UNION SELECT MAX(arrange) as a FROM dropoff_transfers WHERE manage_id = ?
+                    UNION SELECT MAX(arrange) as a FROM overnight_transfers WHERE manage_id = ?
+                  ) as max_table";
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("iii", $manage_id, $manage_id, $manage_id);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+
+        return (int)$res['max_arr'];
+    }
     // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // End Get Data Management Transfer
 

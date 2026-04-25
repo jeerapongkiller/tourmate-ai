@@ -790,7 +790,7 @@
             });
 
             function updateVanBuilderPanel() {
-                let totalPax = 0;
+                let totalPax = parseInt($('#builder-base-pax').val()) || 0;
                 let selectedHtml = '';
 
                 // ล้าง Array กรณีที่บาง Booking โดนฟิลเตอร์หายไป
@@ -837,27 +837,6 @@
                     remSpan.removeClass('text-danger font-weight-bolder').addClass('text-success').text(remaining);
                     $('#btn-assign-van').prop('disabled', false);
                 }
-
-                // ยัดลงกล่อง
-                // $('#builder-booking-list').html(selectedHtml);
-                // if (feather) feather.replace();
-
-                // 🌟 ผูกระบบ Drag & Drop ด้วย Dragula
-                // if (builderDragulaInst) builderDragulaInst.destroy();
-                // builderDragulaInst = dragula([document.getElementById('builder-booking-list')], {
-                //     moves: function(el, container, handle) {
-                //         return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
-                //     }
-                // }).on('drop', function() {
-                //     // เมื่อลากวางเสร็จ ให้จดจำลำดับ Array ใหม่
-                //     activeBuilderOrder = [];
-                //     $('#builder-booking-list .selected-booking-item').each(function(index) {
-                //         activeBuilderOrder.push($(this).data('id'));
-                //         $(this).find('.seq-num').text((index + 1) + "."); // อัปเดตตัวเลขหน้าจอให้สวยงาม
-                //     });
-                //     // สั่งวาดใหม่เพื่อเช็คสีเส้นแดงขอบกล่อง (กรณีคนล้น) ให้อยู่ถูกที่
-                //     updateVanBuilderPanel();
-                // });
 
                 // ยัดลงกล่อง
                 $('#builder-booking-list').html(selectedHtml);
@@ -1026,14 +1005,16 @@
                 });
 
                 // 2. จัดเตรียม Payload ส่งไปให้ PHP
+                // 2. จัดเตรียม Payload ส่งไปให้ PHP
                 let payload = {
                     action: 'assign_van',
                     travel_date: $('#waiting-date').val() || '',
-                    product_id: 1, // ดึงจาก Dropdown
+                    product_id: 1,
                     car_id: $('#van-waiting').val() || 0,
                     seat: $('#van-waiting option:selected').attr('data-seat') || 12,
                     driver_id: $('#driver-waiting').val() || 0,
-                    manage_id: 0, // 0 = เปิดรถใหม่
+                    // 🌟 ดึง ID จากโหมดเติมรถ (ถ้าโหมดปกติจะเป็น 0 อัตโนมัติ)
+                    manage_id: parseInt($('#builder-manage-id').val()) || 0,
                     bookings: selectedBookings
                 };
 
@@ -1059,6 +1040,7 @@
                                 confirmButtonText: 'รับทราบ (รีเฟรชหน้าจอ)'
                             }).then(() => {
                                 // โหลดตารางซ้ายมือใหม่ (เพื่อลบใบที่มีปัญหาออก)
+                                resetAppendMode(); // 🌟 คืนค่าหน้าจอกลับเป็นโหมดสร้างรถปกติ
                                 fetchCarCenterData();
                             });
                         } else {
@@ -1197,6 +1179,15 @@
                                     <div class="progress ${pBarClass} van-progress mb-1">
                                         <div class="progress-bar" role="progressbar" style="width: ${progressPct}%"></div>
                                     </div>
+
+                                    <div class="mt-auto row mx-0 text-center">
+                                        <div class="col-6 px-25">
+                                            <button class="btn btn-sm btn-outline-secondary btn-block btn-edit-van" data-id="${van.id}">แก้ไข</button>
+                                        </div>
+                                        <div class="col-6 px-25">
+                                            <button class="btn btn-sm btn-primary btn-block">พิมพ์</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1249,7 +1240,16 @@
                                 <div class="flex-grow-1">
                                     <div class="d-flex justify-content-between">
                                         <b class="text-dark"><span class="seq-num">${idx + 1}</span>. ${b.hotel_name || '-'} ${typeBadge}</b>
-                                        <span class="badge badge-light-secondary">${b.assigned_pax} Pax</span>
+                                        <div>
+                                            <span class="badge badge-light-secondary mr-50">${b.assigned_pax} Pax</span>
+                                            <button type="button" class="btn btn-flat-danger btn-sm p-25 btn-remove-item" 
+                                                data-btid="${b.bt_id}" 
+                                                data-type="${b.transfer_type}"
+                                                data-name="${b.guest_name}"
+                                                title="เอาออกเฉพาะรายนี้">
+                                                <i data-feather="trash-2"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="small text-muted">${b.guest_name} (${b.nationality || '-'}) • Rm: ${b.room_no || '-'}</div>
                                     <div class="small text-muted"><i data-feather="clock" width="10"></i> ${b.action_time}</div>
@@ -1258,22 +1258,6 @@
                         </div>
                     `;
                 });
-
-                // $('#assigned-booking-list').html(listHtml);
-                // if (feather) feather.replace();
-
-                // // 🌟 เปิดระบบ Drag & Drop ด้วย Dragula.js
-                // if (dragulaInst) dragulaInst.destroy(); // ลบของเก่าก่อนสร้างใหม่
-                // dragulaInst = dragula([document.getElementById('assigned-booking-list')], {
-                //     moves: function(el, container, handle) {
-                //         return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
-                //     }
-                // }).on('drop', function() {
-                //     // เมื่อลากวางเสร็จ ให้รันตัวเลข 1,2,3... ใหม่ให้สวยงาม
-                //     $('#assigned-booking-list .assigned-booking-item').each(function(index) {
-                //         $(this).find('.seq-num').text(index + 1);
-                //     });
-                // });
 
                 $('#assigned-booking-list').html(listHtml);
                 if (feather) feather.replace();
@@ -1421,6 +1405,179 @@
                         });
                     }
                 });
+            });
+
+            // ---------------------------------------------------------
+            // ✏️ 8. แก้ไขข้อมูลรถและคนขับ (Edit Van Info)
+            // ---------------------------------------------------------
+            $(document).on('click', '.btn-edit-van', function(e) {
+                e.stopPropagation(); // 🌟 ทริค: กันไม่ให้กดปุ่มแล้วการ์ดเปลี่ยนสี (เพราะมันจะไปทับซ้อนกับการเลือกการ์ด)
+
+                let manageId = $(this).data('id');
+                let van = assignedVansData.find(v => v.id == manageId);
+
+                if (van) {
+                    $('#edit-manage-id').val(van.id);
+                    $('#edit-van-car').val(van.car_id || 0);
+                    $('#edit-van-driver').val(van.driver_id || 0);
+                    $('#edit-van-seat').val(van.seat || 12);
+                    $('#modal-edit-van').modal('show');
+                }
+            });
+
+            // ---------------------------------------------------------
+            // 🗑️ 9. เอาลูกค้าออกเฉพาะกลุ่ม (Partial Remove)
+            // ---------------------------------------------------------
+            $(document).on('click', '.btn-remove-item', function() {
+                let btId = $(this).data('btid');
+                let type = $(this).data('type');
+                let guestName = $(this).data('name');
+
+                Swal.fire({
+                    title: 'ยืนยันการเอาออก?',
+                    text: `ต้องการคืนคิวคุณ "${guestName}" กลับไปที่รายการ 'รอจัดรถ' ใช่หรือไม่?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#ea5455',
+                    confirmButtonText: 'ใช่, เอาออกเลย',
+                    cancelButtonText: 'ยกเลิก'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.blockUI({
+                            message: 'กำลังปรับปรุงรายการ...'
+                        });
+                        $.ajax({
+                            url: 'pages/car-center/function/remove-partial-booking.php',
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                manage_id: currentSelectedManageId,
+                                bt_id: btId,
+                                transfer_type: type
+                            }),
+                            success: function(res) {
+                                if (typeof res === 'string') res = JSON.parse(res);
+                                if (res.status === 'success') {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'เอาออกเรียบร้อย!',
+                                        showConfirmButton: false,
+                                        timer: 1000
+                                    }).then(() => {
+                                        // 🌟 รีเฟรชทั้ง 2 ฝั่งเพื่อให้ตัวเลข Pax และตารางอัปเดตตรงกัน
+                                        fetchAssignedVans();
+                                        fetchCarCenterData();
+                                    });
+                                }
+                            },
+                            complete: function() {
+                                $.unblockUI();
+                            }
+                        });
+                    }
+                });
+            });
+
+            // เมื่อเปลี่ยนรถใน Modal ให้ปรับตัวเลข Seat ให้อัตโนมัติ
+            $('#edit-van-car').on('change', function() {
+                let seat = $(this).find(':selected').data('seat');
+                if (seat) $('#edit-van-seat').val(seat);
+            });
+
+            // กดบันทึกการแก้ไข
+            $('#btn-save-edit-van').on('click', function() {
+                let manageId = $('#edit-manage-id').val();
+                let carId = $('#edit-van-car').val();
+                let driverId = $('#edit-van-driver').val();
+                let seat = $('#edit-van-seat').val();
+
+                $.blockUI({
+                    message: 'กำลังอัปเดตข้อมูล...'
+                });
+
+                $.ajax({
+                    url: 'pages/car-center/function/edit-van-info.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        manage_id: manageId,
+                        car_id: carId,
+                        driver_id: driverId,
+                        seat: seat
+                    }),
+                    success: function(res) {
+                        if (typeof res === 'string') res = JSON.parse(res);
+                        if (res.status === 'success') {
+                            $('#modal-edit-van').modal('hide');
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'อัปเดตข้อมูลเรียบร้อย!',
+                                showConfirmButton: false,
+                                timer: 1500
+                            }).then(() => {
+                                // 🌟 รีเฟรชตารางรถใหม่ ข้อมูลคนขับ/ความจุรถจะเปลี่ยนไปทันที
+                                fetchAssignedVans();
+                            });
+                        } else {
+                            Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึกได้ กรุณาลองใหม่', 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'ติดต่อเซิร์ฟเวอร์ไม่ได้', 'error');
+                    },
+                    complete: function() {
+                        $.unblockUI();
+                    }
+                });
+            });
+
+            // ---------------------------------------------------------
+            // ➕ 10. โหมดเติมลูกค้าเข้าคันเดิม (Append Mode)
+            // ---------------------------------------------------------
+
+            // 1. เมื่อพนักงานกดปุ่ม "เติมลูกค้าเพิ่มเข้าคันนี้"
+            $(document).on('click', '.btn-append-van', function() {
+                if (!currentSelectedManageId) return;
+
+                let van = assignedVansData.find(v => v.id == currentSelectedManageId);
+                if (van) {
+                    // เซ็ตค่าตัวแปรซ่อน
+                    $('#builder-manage-id').val(van.id);
+                    $('#builder-base-pax').val(van.total_pax);
+
+                    // ล็อกรถและคนขับในหน้า Van Builder
+                    $('#van-waiting').val(van.car_id || 0).trigger('change').prop('disabled', true);
+                    $('#driver-waiting').val(van.driver_id || 0).trigger('change').prop('disabled', true);
+
+                    // โชว์กล่องแจ้งเตือน
+                    $('#append-van-name').text(van.car_name || 'รถเสริม');
+                    $('#append-mode-alert').removeClass('d-none');
+
+                    // สลับ Tab ไปที่หน้า "รอจัดรถ"
+                    $('#join-tab').tab('show');
+
+                    // อัปเดตตัวเลข Pax ให้เริ่มนับจากจำนวนคนที่มีอยู่ในรถแล้ว
+                    updateVanBuilderPanel();
+                }
+            });
+
+            // 2. ฟังก์ชันยกเลิกโหมดเติมรถ (กลับสู่โหมดสร้างรถใหม่)
+            function resetAppendMode() {
+                $('#builder-manage-id').val(0);
+                $('#builder-base-pax').val(0);
+                $('#van-waiting').prop('disabled', false).val('0').trigger('change');
+                $('#driver-waiting').prop('disabled', false).val('0').trigger('change');
+                $('#append-mode-alert').addClass('d-none');
+
+                // เคลียร์ Checkbox ขวามือออกให้หมด
+                $('.chk-booking').prop('checked', false);
+                activeBuilderOrder = [];
+                updateVanBuilderPanel();
+            }
+
+            // เมื่อกดกากบาท (X) ยกเลิกโหมดเติมรถ
+            $('#btn-cancel-append').on('click', function() {
+                resetAppendMode();
             });
         });
     </script>

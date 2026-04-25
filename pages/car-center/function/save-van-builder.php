@@ -41,22 +41,24 @@ if (isset($data['action']) && $data['action'] == "assign_van") {
             $manage_id = $manageObj->create_new_manage_transfer($travel_date, $note, $seat, $driver_id, $car_id);
         }
 
+        // ถ้ามีการสร้างรถใหม่ หรือมี manage_id ส่งมาเพื่อเติมคน
         if ($manage_id > 0) {
-            $arrange = 1;
+            // 🌟 เรียกใช้ฟังก์ชันจาก Manage.php เพื่อหาคิวล่าสุด แล้วบวก 1
+            $arrange = $manageObj->get_max_arrange($manage_id) + 1;
 
             foreach ($passed_list as $b) {
-                // คำนวณ PAX สุทธิ (เอาค่าที่ส่งมาจาก JS ซึ่งรองรับการถูก Split แล้ว)
+                // คำนวณ PAX สุทธิ
                 $total_pax = $b['adult'] + $b['child'] + $b['infant'] + $b['foc'];
 
-                // 🌟 แยกบันทึกลงตารางตามประเภทอย่างถูกต้อง!
+                // แยกบันทึกลงตารางตามประเภท
                 if ($b['transfer_type'] == 'pickup') {
                     $manageObj->insert_new_booking_manage_transfer($arrange, $total_pax, $manage_id, $b['bt_id']);
-                    $arrange++;
                 } elseif ($b['transfer_type'] == 'dropoff') {
                     $manageObj->insert_new_dropoff_transfer($total_pax, $manage_id, $b['bt_id']);
                 } elseif ($b['transfer_type'] == 'overnight') {
                     $manageObj->insert_new_overnight_transfer($total_pax, $manage_id, $b['bt_id']);
                 }
+                $arrange++; // บวกคิวเพิ่มสำหรับคนถัดไป
             }
         }
     }

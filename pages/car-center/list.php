@@ -314,72 +314,6 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
 
                             <div class="row mt-2" id="assigned-van-grid">
 
-                                <!-- <div class="col-xl-4 col-sm-6 mb-2">
-                                    <div class="card van-card active shadow-sm h-100">
-                                        <div class="card-body p-1 d-flex flex-column">
-                                            <div class="d-flex justify-content-start align-items-center mb-1">
-                                                <div class="avatar bg-light-primary p-50 mr-1">
-                                                    <div class="avatar-content">
-                                                        <i data-feather="truck" class="font-medium-5"></i>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <h5 class="mb-0 font-weight-bolder">รถ V02 <span class="text-warning">[10/12]</span></h5>
-                                                    <small class="text-muted">ว่าง 2 ที่นั่ง</small>
-                                                </div>
-                                            </div>
-                                            <div class="mb-1 small">
-                                                <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>นายสมชาย</b></div>
-                                                <div><i data-feather="map-pin" width="12"></i> โซน: <b>กะตะ, กะรน</b></div>
-                                            </div>
-                                            <div class="progress progress-bar-primary van-progress mb-1">
-                                                <div class="progress-bar" role="progressbar" style="width: 83%" aria-valuenow="83" aria-valuemin="0" aria-valuemax="100"></div>
-                                            </div>
-                                            <div class="mt-auto row mx-0 text-center">
-                                                <div class="col-6 px-25">
-                                                    <button class="btn btn-sm btn-outline-secondary btn-block">แก้ไข</button>
-                                                </div>
-                                                <div class="col-6 px-25">
-                                                    <button class="btn btn-sm btn-primary btn-block">พิมพ์</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-xl-4 col-sm-6 mb-2">
-                                    <div class="card van-card shadow-sm h-100">
-                                        <div class="card-body p-1 d-flex flex-column">
-                                            <div class="d-flex justify-content-start align-items-center mb-1">
-                                                <div class="avatar bg-light-danger p-50 mr-1">
-                                                    <div class="avatar-content">
-                                                        <i data-feather="truck" class="font-medium-5"></i>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <h5 class="mb-0 font-weight-bolder">รถ V01 <span class="text-danger">[12/12]</span></h5>
-                                                    <small class="text-danger font-weight-bold">เต็มแล้ว</small>
-                                                </div>
-                                            </div>
-                                            <div class="mb-1 small">
-                                                <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>นายชาก</b></div>
-                                                <div><i data-feather="map-pin" width="12"></i> โซน: <b>ป่าตอง</b></div>
-                                            </div>
-                                            <div class="progress progress-bar-danger van-progress mb-1">
-                                                <div class="progress-bar" role="progressbar" style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
-                                            </div>
-                                            <div class="mt-auto row mx-0 text-center">
-                                                <div class="col-6 px-25">
-                                                    <button class="btn btn-sm btn-outline-secondary btn-block">แก้ไข</button>
-                                                </div>
-                                                <div class="col-6 px-25">
-                                                    <button class="btn btn-sm btn-primary btn-block">พิมพ์</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div> -->
-
                             </div>
                         </div>
 
@@ -448,13 +382,6 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                 </div>
 
                                 <div class="mt-auto">
-                                    <button type="button" class="btn btn-warning btn-block mb-1 font-weight-bold btn-append-van">
-                                        <i data-feather="plus-circle"></i> เติมลูกค้าเพิ่มเข้าคันนี้
-                                    </button>
-
-                                    <button type="button" class="btn btn-outline-primary btn-block mb-1 font-weight-bold" id="btn-save-arrange">
-                                        <i data-feather="shuffle"></i> บันทึกการสลับคิว
-                                    </button>
                                     <button type="button" class="btn btn-danger btn-block mb-1 font-weight-bold" id="btn-remove-van">
                                         <i data-feather="user-minus"></i> ดีดออก (Remove from Van)
                                     </button>
@@ -517,54 +444,6 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
         </div>
     </div>
 
-    <div class="modal fade text-left" id="modal-edit-van" tabindex="-1" role="dialog" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
-            <div class="modal-content border-primary">
-                <div class="modal-header bg-light-primary">
-                    <h5 class="modal-title text-primary"><i data-feather="edit"></i> แก้ไขข้อมูลรถ</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="edit-manage-id" value="">
-
-                    <div class="form-group">
-                        <label>ยานพาหนะ (Van)</label>
-                        <select class="form-control" id="edit-van-car">
-                            <option value="0">Select Cars ...</option>
-                            <?php
-                            $cars = $manageObj->showcars();
-                            foreach ($cars as $car) {
-                                echo "<option value='{$car['id']}' data-seat='{$car['capacity']}'>{$car['name']}</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>ผู้ขับ (Driver)</label>
-                        <select class="form-control" id="edit-van-driver">
-                            <option value="0">Select Driver ...</option>
-                            <?php
-                            $drivers = $manageObj->showdrivers();
-                            foreach ($drivers as $driver) {
-                                echo "<option value='{$driver['id']}'>{$driver['name']}</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>จำนวนที่นั่ง (Max Seats)</label>
-                        <input type="number" class="form-control" id="edit-van-seat" min="1">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-primary" id="btn-save-edit-van">บันทึก</button>
-                </div>
-            </div>
-        </div>
-    </div>
     <!------------------------------------------------------------------>
     <!-- End Form Modal -->
 

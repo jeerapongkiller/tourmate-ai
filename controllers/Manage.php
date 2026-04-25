@@ -1327,14 +1327,9 @@ class Manage extends DB
     }
 
     // 💡 ฟังก์ชันตรวจสอบความถูกต้องก่อนจัดรถ (Concurrency Control)
-    // 💡 ฟังก์ชันตรวจสอบโควต้าที่นั่งก่อนจัดรถ (รองรับ Partial Assignment)
-    public function verify_booking_for_assignment(int $bt_id, string $frontend_updated_at, string $transfer_type, int $requested_pax)
+    public function verify_booking_for_assignment(int $bt_id, string $frontend_updated_at, string $transfer_type, int $requested_pax, int $exclude_manage_id = 0)
     {
-        $query = "SELECT BO.id as bo_id, BO.updated_at, BO.voucher_no_agent, BONO.bo_full,
-                         (SELECT IFNULL(SUM(adult),0) + IFNULL(SUM(child),0) + IFNULL(SUM(foc),0) FROM booking_product_rates WHERE booking_products_id = BP.id) as total_pax,
-                         (SELECT IFNULL(SUM(pax), 0) FROM booking_manage_transfer WHERE booking_transfer_id = BT.id) as pickup_assigned,
-                         (SELECT IFNULL(SUM(pax), 0) FROM dropoff_transfers WHERE booking_transfer_id = BT.id) as dropoff_assigned,
-                         (SELECT IFNULL(SUM(pax), 0) FROM overnight_transfers WHERE booking_transfer_id = BT.id) as overnight_assigned
+        $query = "SELECT BO.id as bo_id, BO.updated_at, BO.voucher_no_agent, BONO.bo_full
                   FROM booking_transfer BT
                   JOIN booking_products BP ON BT.booking_products_id = BP.id
                   JOIN bookings BO ON BP.booking_id = BO.id
@@ -1350,23 +1345,27 @@ class Manage extends DB
 
         $vc_name = !empty($result['voucher_no_agent']) ? $result['voucher_no_agent'] : $result['bo_full'];
 
+        // ตรวจสอบว่าข้อมูลในหน้าจอตรงกับใน DB ไหม (ป้องกันคนแก้ข้อมูลพร้อมกัน)
         if ($result['updated_at'] !== $frontend_updated_at) {
             return ['status' => false, 'reason' => 'ข้อมูล Booking มีการเปลี่ยนแปลง', 'vc' => $vc_name];
         }
 
-        // เช็คว่าที่นั่งเหลือพอให้เซฟหรือไม่ ตามประเภท Transfer
-        $assigned_already = 0;
-        if ($transfer_type == 'pickup') $assigned_already = $result['pickup_assigned'];
-        elseif ($transfer_type == 'dropoff') $assigned_already = $result['dropoff_assigned'];
-        elseif ($transfer_type == 'overnight') $assigned_already = $result['overnight_assigned'];
-
-        $remaining_pax = $result['total_pax'] - $assigned_already;
-
-        if ($requested_pax > $remaining_pax) {
-            return ['status' => false, 'reason' => "ที่นั่งไม่พอ (โควต้าเหลือ $remaining_pax)", 'vc' => $vc_name];
-        }
-
+        // 🌟 ปลดล็อก: ไม่เช็คที่นั่งเต็มแล้ว เพื่อให้บันทึกได้ทุกกรณีตามที่พนักงานตัดสินใจ
         return ['status' => true];
+    }
+
+    // 🌟 ดึงเวลา updated_at ล่าสุดของ Booking
+    public function get_booking_updated_at(int $bt_id)
+    {
+        $query = "SELECT BO.updated_at FROM bookings BO 
+                  JOIN booking_products BP ON BO.id = BP.booking_id 
+                  JOIN booking_transfer BT ON BP.id = BT.booking_products_id 
+                  WHERE BT.id = ?";
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("i", $bt_id);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        return $res['updated_at'] ?? '';
     }
 
     // สร้างรถใหม่
@@ -1449,6 +1448,24 @@ class Manage extends DB
         $res = $stmt->get_result()->fetch_assoc();
 
         return (int)$res['max_arr'];
+    }
+
+    // 🌟 ฟังก์ชันอัปเดตข้อมูลรถ/คนขับ ในโหมดแก้ไข
+    public function update_manage_info(int $manage_id, int $car_id, int $driver_id, int $seat)
+    {
+        $query = "UPDATE manage_transfer SET car_id = ?, driver_id = ?, seat = ? WHERE id = ?";
+        $stmt = $this->connection->prepare($query);
+        $stmt->bind_param("iiii", $car_id, $driver_id, $seat, $manage_id);
+        return $stmt->execute();
+    }
+
+    // 🌟 ฟังก์ชันล้างคิวเก่าให้สะอาดก่อนเขียนใหม่ (Wipe Data)
+    public function clear_manage_transfer_bookings(int $manage_id)
+    {
+        $this->connection->query("DELETE FROM booking_manage_transfer WHERE manage_id = $manage_id");
+        $this->connection->query("DELETE FROM dropoff_transfers WHERE manage_id = $manage_id");
+        $this->connection->query("DELETE FROM overnight_transfers WHERE manage_id = $manage_id");
+        return true;
     }
     // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // End Get Data Management Transfer

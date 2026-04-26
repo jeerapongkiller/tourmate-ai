@@ -814,16 +814,18 @@
                         if (b.transfer_type_tag === 'dropoff' || b.transfer_type === 'dropoff') typeBadge = '<span class="badge badge-light-danger ml-50">Dropoff</span>';
                         else if (b.transfer_type_tag === 'overnight' || b.transfer_type === 'overnight') typeBadge = '<span class="badge badge-light-info ml-50">Overnight</span>';
 
+                        // 🌟 วางทับ selectedHtml เดิมเลยครับ
                         selectedHtml += `
-                        <div class="selected-booking-item cursor-move ${totalPax > maxVanCapacity ? 'border-danger' : ''}" data-id="${id}">
+                        <div class="selected-booking-item ${totalPax > maxVanCapacity ? 'border-danger' : ''}" data-id="${id}">
                             <div class="d-flex w-100 align-items-start">
-                                <i data-feather="move" class="text-muted mr-50 mt-25"></i>
+                                <i data-feather="move" class="text-muted mr-50 mt-25 cursor-move" style="cursor: grab;"></i>
+                                
                                 <div class="flex-grow-1">
                                     <div class="d-flex justify-content-between mb-25">
                                         <b class="text-dark"><span class="seq-num">${seqNum}.</span> ${b.hotel_name || '-'} ${typeBadge}</b>
                                         <div>
                                             <span class="badge badge-light-secondary mr-50">${pax} Pax</span>
-                                            <span class="cursor-pointer ml-50 btn-remove-from-builder" data-id="${id}" title="เอาออก">
+                                            <span class="cursor-pointer ml-50 btn-remove-from-builder no-drag" data-id="${id}">
                                                 <i data-feather="x" class="text-danger"></i>
                                             </span>
                                         </div>
@@ -863,7 +865,8 @@
                 if (!builderDragulaInst) {
                     builderDragulaInst = dragula([document.getElementById('builder-booking-list')], {
                         moves: function(el, container, handle) {
-                            return handle.classList.contains('cursor-move') || handle.closest('.cursor-move');
+                            if (handle.closest('.no-drag')) return false;
+                            return handle.classList.contains('cursor-move');
                         }
                     }).on('drop', function() {
                         activeBuilderOrder = [];
@@ -875,6 +878,17 @@
                     });
                 }
             }
+
+            $(document).on('click', '.btn-remove-from-builder', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                let id = $(this).data('id');
+
+                activeBuilderOrder = activeBuilderOrder.filter(x => x != id);
+
+                updateVanBuilderPanel();
+            });
 
             // ---------------------------------------------------------
             // 5. ระบบตัดแบ่งคน (Split Logic ✂️)
@@ -1069,8 +1083,19 @@
                                 showConfirmButton: false,
                                 timer: 1500
                             }).then(() => {
-                                // 🌟 สั่งให้จำลองการกดปุ่ม "ค้นหา" เพื่อรีเฟรชข้อมูลอัตโนมัติ
+                                // 🌟 เก็บค่าไว้ก่อนว่าตะกี้เราอยู่ในโหมดแก้ไขใช่หรือไม่?
+                                let wasEditing = $('#builder-manage-id').val() > 0;
+
+                                // 🌟 สั่งล้างหน้าจอ คืนค่ากลับเป็นโหมดปกติ
+                                resetAppendMode();
+
+                                // 🌟 โหลดตารางรอจัดรถใหม่
                                 fetchCarCenterData();
+
+                                // 🌟 ไม้ตาย UX: ถ้าตะกี้เป็นการ "แก้ไขรถ" ให้ดีดกลับไปแท็บ "จัดรถแล้ว" อัตโนมัติ เพื่อดูผลงาน
+                                if (wasEditing) {
+                                    $('#private-tab').tab('show');
+                                }
                             });
                         }
                     }

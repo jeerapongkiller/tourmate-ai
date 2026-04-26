@@ -37,37 +37,85 @@ if (isset($data['action']) && $data['action'] == "assign_van") {
     }
 
     // 2. บันทึกข้อมูลที่ผ่านการตรวจสอบ
-    if (count($passed_list) > 0) {
+    // if ($manage_id > 0) {
+    //     // ==========================================
+    //     // ✏️ โหมดแก้ไข (EDIT MODE)
+    //     // ==========================================
+    //     // 1. อัปเดตข้อมูลรถ และ ล้างคิวเก่าทิ้ง "เสมอ" (แม้ว่าจะลบคนออกจนหมดเกลี้ยงก็ตาม)
+    //     $manageObj->update_manage_info($manage_id, $car_id, $driver_id, $data['seat']);
+    //     $manageObj->clear_manage_transfer_bookings($manage_id);
 
-        // 2.1 แยกโหมดสร้างใหม่ กับ โหมดแก้ไข
-        if ($manage_id == 0) {
-            // โหมดสร้างรถใหม่
-            $manage_id = $manageObj->create_new_manage_transfer($travel_date, "", $data['seat'], $driver_id, $car_id);
-        } else {
-            // 🌟 โหมดแก้ไข: อัปเดตข้อมูลรถ/คนขับ และ ล้างคิวเก่าทิ้งให้หมดเกลี้ยง!
-            $manageObj->update_manage_info($manage_id, $car_id, $driver_id, $data['seat']);
-            $manageObj->clear_manage_transfer_bookings($manage_id);
-        }
+    //     // 2. ถ้ามีคนเหลืออยู่ ค่อยเขียนคิวใหม่ลงไป
+    //     if (count($passed_list) > 0) {
+    //         $arrange = 1;
+    //         foreach ($passed_list as $b) {
+    //             $total_pax = $b['adult'] + $b['child'] + $b['infant'] + $b['foc'];
 
-        // 2.2 บันทึกคิวลูกค้าลงรถ (ใช้รัน Arrange 1, 2, 3... ใหม่จากบนลงล่างเลย)
-        if ($manage_id > 0) {
-            $arrange = 1;
-            foreach ($passed_list as $b) {
-                $total_pax = $b['adult'] + $b['child'] + $b['infant'] + $b['foc'];
+    //             if ($b['transfer_type'] == 'pickup') {
+    //                 $manageObj->insert_new_booking_manage_transfer($arrange, $total_pax, $manage_id, $b['bt_id']);
+    //             } elseif ($b['transfer_type'] == 'dropoff') {
+    //                 $manageObj->insert_new_dropoff_transfer($total_pax, $manage_id, $b['bt_id']);
+    //             } elseif ($b['transfer_type'] == 'overnight') {
+    //                 $manageObj->insert_new_overnight_transfer($total_pax, $manage_id, $b['bt_id']);
+    //             }
+    //             $arrange++;
+    //         }
+    //     }
+    // } else {
+    //     // ==========================================
+    //     // 🆕 โหมดสร้างรถใหม่ (CREATE MODE)
+    //     // ==========================================
+    //     // สร้างใหม่ต้องมีลูกค้าผ่านด่านอย่างน้อย 1 รายการ
+    //     if (count($passed_list) > 0) {
+    //         $manage_id = $manageObj->create_new_manage_transfer($travel_date, "", $data['seat'], $driver_id, $car_id);
+    //         $arrange = 1;
+    //         foreach ($passed_list as $b) {
+    //             $total_pax = $b['adult'] + $b['child'] + $b['infant'] + $b['foc'];
 
-                if ($b['transfer_type'] == 'pickup') {
-                    $manageObj->insert_new_booking_manage_transfer($arrange, $total_pax, $manage_id, $b['bt_id']);
-                } elseif ($b['transfer_type'] == 'dropoff') {
-                    // ของ Dropoff เราก็เขียน Arrange ลงไปด้วย เพราะเราเพิ่มคอลัมน์ไว้รอแล้ว!
-                    $manageObj->insert_new_dropoff_transfer($total_pax, $manage_id, $b['bt_id']);
-                    // ถ้าคุณเขียน insert_new_dropoff_transfer ให้รองรับการ Insert arrange แล้ว ก็สามารถแกะส่ง $arrange เข้าไปได้เลย
-                    // แต่ถ้าใน Manage.php ยังไม่ได้รับค่า arrange ของ dropoff ก็ปล่อยไว้แบบนี้ก่อนได้ครับ
-                } elseif ($b['transfer_type'] == 'overnight') {
-                    $manageObj->insert_new_overnight_transfer($total_pax, $manage_id, $b['bt_id']);
-                }
+    //             if ($b['transfer_type'] == 'pickup') {
+    //                 $manageObj->insert_new_booking_manage_transfer($arrange, $total_pax, $manage_id, $b['bt_id']);
+    //             } elseif ($b['transfer_type'] == 'dropoff') {
+    //                 $manageObj->insert_new_dropoff_transfer($total_pax, $manage_id, $b['bt_id']);
+    //             } elseif ($b['transfer_type'] == 'overnight') {
+    //                 $manageObj->insert_new_overnight_transfer($total_pax, $manage_id, $b['bt_id']);
+    //             }
+    //             $arrange++;
+    //         }
+    //     }
+    // }
 
-                $arrange++; // รันลำดับคิวต่อไป
+    // 2. บันทึกข้อมูล
+    // 🌟 ปรับใหม่: ยอมให้สร้าง/แก้ไขรถได้เสมอ แม้จะไม่มีรายชื่อลูกค้า (Empty Van)
+
+    if ($manage_id == 0) {
+        // ==========================================
+        // 🆕 โหมดสร้างรถใหม่ (CREATE MODE)
+        // ==========================================
+        // สั่งสร้างหัวกระดาษ (manage_transfer) ทันที
+        $manage_id = $manageObj->create_new_manage_transfer($travel_date, "", $data['seat'], $driver_id, $car_id);
+    } else {
+        // ==========================================
+        // ✏️ โหมดแก้ไข (EDIT MODE)
+        // ==========================================
+        // อัปเดตข้อมูลรถ และ ล้างคิวเก่าทิ้ง "เสมอ" เพื่อเตรียมเขียนใหม่ (หรือปล่อยว่าง)
+        $manageObj->update_manage_info($manage_id, $car_id, $driver_id, $data['seat']);
+        $manageObj->clear_manage_transfer_bookings($manage_id);
+    }
+
+    // 3. ถ้ามีรายชื่อลูกค้าส่งมาด้วย ค่อยวนลูปบันทึกคิว (ถ้าไม่มีก็ข้ามไป รถจะกลายเป็นรถเปล่า)
+    if ($manage_id > 0 && count($passed_list) > 0) {
+        $arrange = 1;
+        foreach ($passed_list as $b) {
+            $total_pax = $b['adult'] + $b['child'] + $b['infant'] + $b['foc'];
+
+            if ($b['transfer_type'] == 'pickup') {
+                $manageObj->insert_new_booking_manage_transfer($arrange, $total_pax, $manage_id, $b['bt_id']);
+            } elseif ($b['transfer_type'] == 'dropoff') {
+                $manageObj->insert_new_dropoff_transfer($total_pax, $manage_id, $b['bt_id']);
+            } elseif ($b['transfer_type'] == 'overnight') {
+                $manageObj->insert_new_overnight_transfer($total_pax, $manage_id, $b['bt_id']);
             }
+            $arrange++;
         }
     }
 

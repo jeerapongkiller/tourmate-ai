@@ -166,6 +166,44 @@
         .cursor-move:active {
             cursor: grabbing;
         }
+
+        /* 🌟 สไตล์สำหรับ Filter Labels */
+        .filter-label {
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            border: 2px solid transparent;
+            transition: all 0.2s ease-in-out;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            opacity: 0.4;
+            /* สถานะปิด (ไม่ได้เลือก) สีจะจางๆ */
+            filter: grayscale(40%);
+        }
+
+        .filter-label.active {
+            opacity: 1;
+            /* สถานะเปิด (ถูกเลือก) สีจะเข้มชัดเจน */
+            filter: grayscale(0%);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .filter-label i {
+            width: 14px;
+            height: 14px;
+            margin-right: 4px;
+            display: none;
+            /* ซ่อนไอคอนเช็คถูกไว้ก่อน */
+        }
+
+        .filter-label.active i {
+            display: inline-block;
+            /* โชว์ไอคอนเมื่อถูกเลือก */
+        }
     </style>
 </head>
 <!-- END: Head-->
@@ -453,26 +491,31 @@
                         travel_date: date
                     },
                     success: function(res) {
-
                         if (typeof res === 'string') res = JSON.parse(res);
 
                         if (res.status === 'success') {
-                            // ยัด HTML ใหม่ลงไปใน Select
-                            $('#waiting-park').html(res.html_parks);
+                            $('#waiting-park').html(res.html_parks).trigger('change.select2');
+
+                            // ยัด option ลงไปใน Select ที่เราซ่อนไว้
                             $('#waiting-programs').html(res.html_programs);
                             $('#waiting-zones').html(res.html_zones);
 
-                            // บังคับให้ Select2 รีเฟรช UI ใหม่ให้สวยงาม
-                            $('#waiting-park, #waiting-programs, #waiting-zones').trigger('change.select2');
+                            // 🌟 เรียกฟังก์ชันวาดปุ่ม Label (ที่เราจะสร้างใหม่ด้านล่าง)
+                            renderFilterLabels();
 
-                            // 💡 ทริค: เมื่อโหลด Filter เสร็จ ให้เลือก "ทุกโปรแกรม" อัตโนมัติ เพื่อกระตุ้นให้โหลดตารางต่อทันที
+                            // 💡 ทริค: เลือกทุกโปรแกรมอัตโนมัติ เพื่อกระตุ้นให้โหลดตาราง
                             let allProgramIds = [];
                             $('#waiting-programs option').each(function() {
                                 if ($(this).val()) allProgramIds.push($(this).val());
                             });
 
-                            // การสั่ง .trigger('change') ตรงนี้ จะไปกระตุ้นให้ fetchCarCenterData ทำงานทันที!
-                            $('#waiting-programs').val(allProgramIds).trigger('change');
+                            // อัปเดตค่า Select แบบเงียบๆ และสั่งให้มันดึงข้อมูลตารางเลย
+                            $('#waiting-programs').val(allProgramIds);
+
+                            // อัปเดตให้ปุ่ม Label ฝั่งโปรแกรม สว่างขึ้น (Active) ทั้งหมด
+                            $('.filter-label[data-target="waiting-programs"]').addClass('active');
+
+                            fetchCarCenterData(); // โหลดตารางเลย ไม่ต้องพึ่ง trigger change
                         }
                     },
                     complete: function() {
@@ -480,6 +523,120 @@
                     }
                 });
             }
+
+            // ---------------------------------------------------------
+            // 🎨 ฟังก์ชันสำหรับวาดปุ่ม Labels ตาม Option ที่ได้รับมา
+            // ---------------------------------------------------------
+            function renderFilterLabels() {
+                // 1. วาดปุ่มของ Program
+                let progHtml = `<div class="filter-label active filter-all" data-target="waiting-programs" style="background-color: #e2e8f0; color: #1e293b;"><i data-feather="check"></i> Show All</div>`;
+                $('#waiting-programs option').each(function() {
+                    let val = $(this).val();
+                    if (!val) return;
+
+                    // เตรียมสีสำหรับ Program ในอนาคต (ถ้าไม่มี ให้ใช้สีเทาเข้มๆ ไปก่อน)
+                    let color = $(this).data('color') || '#4b5563';
+                    let textColor = getContrastYIQ(color);
+
+                    progHtml += `<div class="filter-label filter-item active" data-target="waiting-programs" data-val="${val}" style="background-color: ${color}; color: ${textColor};"><i data-feather="check"></i> ${$(this).text()} <span class="pax-count ml-25">(0)</span></div>`;
+                });
+                $('#program-labels-container').html(progHtml);
+
+                // 2. วาดปุ่มของ Zone
+                let zoneHtml = `<div class="filter-label filter-all" data-target="waiting-zones" style="background-color: #e2e8f0; color: #1e293b;"><i data-feather="check"></i> Show All</div>`;
+                $('#waiting-zones option').each(function() {
+                    let val = $(this).val();
+                    if (!val || !$(this).data('color')) return; // ข้าม Optgroup หรืออันที่ไม่มีค่า
+
+                    let color = $(this).data('color') || '#82868b';
+                    let textColor = getContrastYIQ(color);
+
+                    zoneHtml += `<div class="filter-label filter-item" data-target="waiting-zones" data-val="${val}" style="background-color: ${color}; color: ${textColor};"><i data-feather="check"></i> ${$(this).text()} <span class="pax-count ml-25">(0)</span></div>`;
+                });
+
+                $('#zone-labels-container').html(zoneHtml);
+
+                if (feather) feather.replace();
+            }
+
+            // ฟังก์ชันอัปเดตตัวเลขบนป้าย Label
+            function updateFilterCounts() {
+                // รีเซ็ตเลขเป็น 0 ก่อน
+                $('.pax-count').text('(0)');
+
+                let progCount = {};
+                let zoneCount = {};
+                let totalPax = 0;
+
+                // วนลูปนับคนจากตะกร้าใหญ่ (masterPoolData)
+                masterPoolData.forEach(b => {
+                    let pax = parseInt(b.pax_total) || 0;
+                    totalPax += pax;
+
+                    progCount[b.product_id] = (progCount[b.product_id] || 0) + pax;
+                    zoneCount[b.zone_id] = (zoneCount[b.zone_id] || 0) + pax;
+                });
+
+                // ยัดตัวเลขกลับเข้าไปในป้าย
+                for (let pid in progCount) {
+                    $(`.filter-label[data-target="waiting-programs"][data-val="${pid}"] .pax-count`).text(`(${progCount[pid]})`);
+                }
+                for (let zid in zoneCount) {
+                    $(`.filter-label[data-target="waiting-zones"][data-val="${zid}"] .pax-count`).text(`(${zoneCount[zid]})`);
+                }
+
+                // อัปเดตป้าย Show All
+                $('.filter-all .pax-count').text(`(${totalPax})`);
+            }
+
+            // ---------------------------------------------------------
+            // 🖱️ ระบบดักจับการคลิกที่ปุ่ม Label
+            // ---------------------------------------------------------
+            $(document).on('click', '.filter-label', function() {
+                let targetId = $(this).data('target'); // รู้ว่าปุ่มนี้เป็นของ Programs หรือ Zones
+                let $select = $('#' + targetId);
+
+                if ($(this).hasClass('filter-all')) {
+                    // กรณีกดปุ่ม "Show All"
+                    let allVals = [];
+                    $select.find('option').each(function() {
+                        if ($(this).val()) allVals.push($(this).val());
+                    });
+
+                    if (!$(this).hasClass('active')) {
+                        // สั่งเลือกทั้งหมด
+                        $select.val(allVals);
+                        $(this).siblings('.filter-item').addClass('active');
+                        $(this).addClass('active');
+                    } else {
+                        // สั่งยกเลิกทั้งหมด
+                        $select.val([]);
+                        $(this).siblings('.filter-item').removeClass('active');
+                        $(this).removeClass('active');
+                    }
+                } else {
+                    // กรณีกดปุ่มเลือกทีละอัน (Toggle)
+                    $(this).toggleClass('active');
+
+                    // วนลูปอ่านค่าปุ่มที่ยัง Active อยู่ แล้วอัปเดตลง Select
+                    let selectedVals = [];
+                    $(this).parent().find('.filter-item.active').each(function() {
+                        selectedVals.push($(this).data('val'));
+                    });
+                    $select.val(selectedVals);
+
+                    // คุมสถานะปุ่ม Show All
+                    let totalItems = $(this).parent().find('.filter-item').length;
+                    if (selectedVals.length === totalItems && totalItems > 0) {
+                        $(this).parent().find('.filter-all').addClass('active');
+                    } else {
+                        $(this).parent().find('.filter-all').removeClass('active');
+                    }
+                }
+
+                // สั่งโหลดข้อมูลตารางใหม่ทันทีแบบเนียนๆ
+                fetchCarCenterData();
+            });
 
             // 2. ฟังก์ชันโหลดตารางจัดรถ (เหมือนเดิม)
             function fetchCarCenterData() {
@@ -531,6 +688,7 @@
                                 $('#private-tab .badge').text(`(${res.summary.total_vans} คัน / ${res.summary.total_pax} คน)`);
                             }
 
+                            updateFilterCounts();
                             renderTables();
                         }
                     },
@@ -709,9 +867,11 @@
                             </td>
                             <td>${b.hotel_name} ${typeBadge}<br><small class="text-muted">Room: ${b.room_no}</small></td>
                             <td>${b.guest_name} ${b.country} <br><small class="text-muted">Nation: ${b.nationality}, Tel: ${b.guest_phone}</small></td>
-                            <td>${b.voucher_no}<br><small class="text-muted">Agent: ${b.company_name}</small></td>
+                            <td>${b.voucher_no}<br><small class="text-muted">${b.company_name}</small></td>
                             <td class="text-center">${b.product_name}</td>
-                            <td class="text-center font-weight-bold text-primary">${b.pax_total}</td>
+                            <td class="text-center">
+                            <span class="font-weight-bold text-primary">${b.pax_total}</span><br><small class="text-muted">${b.adult}/${b.child}/${b.infant}/${b.foc}</small>
+                            </td>
                             <td class="text-center">${actionBtns}</td>
                         </tr>
                     `;
@@ -1117,36 +1277,6 @@
                 updateVanBuilderPanel();
             });
 
-            // ==========================================
-            // 🏝️ ระบบเลือกอุทยาน แล้ว Auto-select โปรแกรม
-            // ==========================================
-            $('#waiting-park').on('change', function() {
-                let selectedParkId = $(this).val();
-                let $programSelect = $('#waiting-programs');
-
-                // 1. ล้างค่าโปรแกรมที่ถูกเลือกไว้ก่อนหน้าออกให้หมดก่อน
-                $programSelect.val(null);
-
-                // 2. ถ้าไม่ได้เลือก "all" (เลือกอุทยานเจาะจง)
-                if (selectedParkId && selectedParkId !== 'all') {
-
-                    let matchedProgramIds = [];
-
-                    // วนลูปหา option ในโปรแกรม ว่าตัวไหนมี data-park ตรงกับอุทยานที่เลือก
-                    $programSelect.find('option').each(function() {
-                        if ($(this).data('park') == selectedParkId) {
-                            matchedProgramIds.push($(this).val());
-                        }
-                    });
-
-                    // 3. ยัดค่า ID โปรแกรมที่หาเจอ เข้าไปใน Select
-                    $programSelect.val(matchedProgramIds);
-                }
-
-                // 4. สั่ง Trigger Change เพื่อให้ปลั๊กอิน Select2 อัปเดตหน้าจอ (สำคัญมาก)
-                $programSelect.trigger('change');
-            });
-
             // ---------------------------------------------------------
             // Interaction สำหรับคลิกเลือก Van Card
             // ---------------------------------------------------------
@@ -1193,12 +1323,22 @@
                 assignedVansData.forEach((van, index) => {
                     let isFull = van.total_pax >= van.seat;
                     let progressPct = (van.total_pax / van.seat) * 100;
-                    if (progressPct > 100) progressPct = 100; // กันหลอดทะลุ
+                    if (progressPct > 100) progressPct = 100;
+
+                    // 🌟 1. ดึงชื่อโปรแกรมทั้งหมดในรถคันนี้มารวมกันแบบไม่ซ้ำ (Unique)
+                    let programs = [...new Set(van.bookings.map(b => b.product_name))].filter(p => p).join(', ');
+                    if (!programs) programs = '-';
+
+                    // 🌟 2. เช็คว่ามี Dropoff หรือ Overnight ไหม เพื่อสร้าง Badge
+                    let hasDropoff = van.bookings.some(b => b.transfer_type === 'dropoff');
+                    let hasOvernight = van.bookings.some(b => b.transfer_type === 'overnight');
+                    let tagsHtml = '';
+                    if (hasDropoff) tagsHtml += '<span class="badge badge-light-danger ml-50">Dropoff</span>';
+                    if (hasOvernight) tagsHtml += '<span class="badge badge-light-info ml-50">Overnight</span>';
 
                     let statusHtml = isFull ? `<small class="text-danger font-weight-bold">เต็มแล้ว</small>` : `<small class="text-muted">ว่าง ${van.seat - van.total_pax} ที่นั่ง</small>`;
                     let pBarClass = isFull ? 'progress-bar-danger' : 'progress-bar-primary';
 
-                    // ถ้าไม่มีคันไหนถูกเลือกเลย ให้ Auto-select คันแรก
                     if (!currentSelectedManageId && index === 0) currentSelectedManageId = van.id;
                     let activeClass = (currentSelectedManageId == van.id) ? 'active' : '';
 
@@ -1216,8 +1356,9 @@
                                         </div>
                                     </div>
                                     <div class="mb-1 small">
-                                        <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>${van.driver_name || 'ไม่ระบุ'}</b></div>
+                                        <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>${van.driver_name || 'ไม่ระบุ'}</b> ${tagsHtml}</div>
                                         <div class="text-truncate" title="${van.zones_summary}"><i data-feather="map-pin" width="12"></i> โซน: <b>${van.zones_summary || '-'}</b></div>
+                                        <div class="text-truncate mt-25"><i data-feather="flag" width="12"></i> โปรแกรม: <b>${programs}</b></div>
                                     </div>
                                     <div class="progress ${pBarClass} van-progress mb-1">
                                         <div class="progress-bar" role="progressbar" style="width: ${progressPct}%"></div>
@@ -1239,8 +1380,6 @@
 
                 $('#assigned-van-grid').html(html);
                 if (feather) feather.replace();
-
-                // วาดรายละเอียดฝั่งขวาตามรถที่ถูกเลือก
                 renderAssignedVanDetails();
             }
 
@@ -1252,7 +1391,9 @@
                 renderAssignedVanDetails();
             });
 
-            // 4. ฟังก์ชันวาดคิวรถฝั่งขวา (หน้าจัดรถแล้ว - เป็นแค่ Info ธรรมดา)
+            let dragulaAssignedInst = null; // 🌟 ตัวแปรเก็บ Dragula สำหรับหน้าต่างขวา
+
+            // 4. ฟังก์ชันวาดรายละเอียดฝั่งขวา (พร้อมลากสลับและลบ)
             function renderAssignedVanDetails() {
                 let van = assignedVansData.find(v => v.id == currentSelectedManageId);
                 if (!van) {
@@ -1260,16 +1401,16 @@
                     return;
                 }
                 $('.assigned-panel-right').show();
+                $('#btn-save-arrange').hide(); // ซ่อนปุ่มเซฟคิวไว้ก่อน จะโชว์ตอนลาก
 
-                // สรุปข้อมูล Header
                 $('.assigned-panel-right h4 span:first').text(`ข้อมูลสรุป ${van.car_name || 'รถเสริม'}`);
                 $('.assigned-panel-right h4 span.badge').text(`${van.total_pax}/${van.seat}`);
                 $('.assigned-panel-right .small').html(`
                     <div><b>ผู้ขับ:</b> ${van.driver_name || '-'} (${van.telephone || '-'})</div>
                     <div><b>โซนหลัก:</b> ${van.zones_summary || '-'}</div>
+                    <div><b>โปรแกรม:</b> ${van.programs_summary || '-'}</div>
                 `);
 
-                // วาดรายชื่อลูกค้าแบบธรรมดา (ไม่มี cursor-move, ไม่มีไอคอนลาก)
                 let listHtml = '';
                 van.bookings.forEach((b, idx) => {
                     let typeBadge = '';
@@ -1277,12 +1418,18 @@
                     else if (b.transfer_type === 'overnight') typeBadge = '<span class="badge badge-light-info ml-50">Overnight</span>';
 
                     listHtml += `
-                        <div class="assigned-booking-item mb-1">
-                            <div class="d-flex align-items-start">
+                        <div class="assigned-booking-item mb-1 cursor-move" data-btid="${b.bt_id}" data-type="${b.transfer_type}">
+                            <div class="d-flex align-items-start w-100">
+                                <i data-feather="move" class="text-muted mr-50 mt-25 handle-move" style="cursor: grab;"></i>
                                 <div class="flex-grow-1">
                                     <div class="d-flex justify-content-between">
-                                        <b class="text-dark">${idx + 1}. ${b.hotel_name || '-'} ${typeBadge}</b>
-                                        <span class="badge badge-light-secondary">${b.assigned_pax} Pax</span>
+                                        <b class="text-dark"><span class="seq-num">${idx + 1}.</span> ${b.hotel_name || '-'} ${typeBadge}</b>
+                                        <div>
+                                            <span class="badge badge-light-secondary mr-50">${b.assigned_pax} Pax</span>
+                                            <span class="cursor-pointer text-danger btn-delete-booking-from-van" data-btid="${b.bt_id}" data-manageid="${van.id}" data-type="${b.transfer_type}" title="ลบออกจากรถ">
+                                                <i data-feather="trash-2" style="pointer-events: none;"></i>
+                                            </span>
+                                        </div>
                                     </div>
                                     <div class="small text-muted">${b.guest_name} (${b.nationality || '-'}) • Rm: ${b.room_no || '-'}</div>
                                     <div class="small text-muted"><i data-feather="clock" width="10"></i> ${b.action_time}</div>
@@ -1295,8 +1442,67 @@
                 $('#assigned-booking-list').html(listHtml);
                 if (feather) feather.replace();
 
-                // 🌟 ปิดการใช้งาน Dragula ในหน้านี้แล้ว (ไม่ต้องมีโค้ด dragulaInst)
+                // 🌟 ผูกระบบลากสลับคิว (Dragula) กลับมา
+                if (!dragulaAssignedInst) {
+                    dragulaAssignedInst = dragula([document.getElementById('assigned-booking-list')], {
+                        moves: function(el, container, handle) {
+                            return handle.classList.contains('handle-move') || handle.closest('.handle-move');
+                        }
+                    }).on('drop', function() {
+                        // รันลำดับเลข 1, 2, 3... ใหม่
+                        $('#assigned-booking-list .assigned-booking-item').each(function(index) {
+                            $(this).find('.seq-num').text((index + 1) + ".");
+                        });
+                        // โชว์ปุ่มบันทึกคิวสีเหลือง
+                        $('#btn-save-arrange').fadeIn();
+                    });
+                }
             }
+
+            // 🌟 5. ดักจับการกดถังขยะเพื่อลบลูกค้าออก 1 รายการ
+            $(document).on('click', '.btn-delete-booking-from-van', function() {
+                let btId = $(this).data('btid');
+                let manageId = $(this).data('manageid');
+                let transferType = $(this).data('type');
+
+                Swal.fire({
+                    title: 'เอาลูกค้าออกจากรถ?',
+                    text: "ลูกค้ารายนี้จะถูกเตะกลับไปที่ตะกร้า 'รอจัดรถ'",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'ใช่, เอาออกเลย',
+                    cancelButtonText: 'ยกเลิก',
+                    confirmButtonColor: '#ea5455'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.blockUI({
+                            message: 'กำลังเอาออก...'
+                        });
+                        $.ajax({
+                            url: 'pages/car-center/function/remove-partial-booking.php', // 🌟 ชี้มาที่ไฟล์เดิมของคุณ
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                manage_id: manageId,
+                                bt_id: btId,
+                                transfer_type: transferType
+                            }),
+                            success: function(res) {
+                                if (typeof res === 'string') res = JSON.parse(res);
+                                if (res.status === 'success') {
+                                    fetchAssignedVans(); // อัปเดตข้อมูลรถคันนี้
+                                    fetchCarCenterData(); // อัปเดตหน้าแรก (เพื่อคืนคนเข้า Pool)
+                                } else {
+                                    Swal.fire('Error', res.message || 'เกิดข้อผิดพลาด', 'error');
+                                }
+                            },
+                            complete: function() {
+                                $.unblockUI();
+                            }
+                        });
+                    }
+                });
+            });
 
             // 5. ดักจับเมื่อกดสลับ Tab ไปที่ "จัดรถแล้ว" ให้โหลดข้อมูล
             $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {

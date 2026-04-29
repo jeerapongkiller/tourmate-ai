@@ -19,7 +19,10 @@ if (isset($_POST['travel_date'])) {
     // 2. สร้าง HTML สำหรับ Program
     $html_programs = "";
     foreach ($filters['programs'] as $p) {
-        $html_programs .= "<option value='{$p['id']}' data-park='{$p['park_id']}'>{$p['name']}</option>";
+        // 🌟 เตรียมรับค่าสีโปรแกรมไว้ล่วงหน้า (ถ้าใน DB ยังไม่มี/ยังไม่ได้ตั้งค่า ให้ใช้สีเทา #475569 ไปก่อน)
+        $color = !empty($p['color_hex']) ? $p['color_hex'] : '#475569';
+
+        $html_programs .= "<option value='{$p['id']}' data-park='{$p['park_id']}' data-color='{$color}'>{$p['name']}</option>";
     }
 
     // 3. สร้าง HTML สำหรับ Zone (จัดกลุ่มตาม Route ที่คุณต้องการ)

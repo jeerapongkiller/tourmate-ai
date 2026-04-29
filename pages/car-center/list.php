@@ -58,105 +58,25 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="form-group mb-0">
-                                    <label class="font-weight-bold">อุทยาน (Park)</label>
-                                    <select class="form-control select2" id="waiting-park">
-                                        <option value="all">-- เลือกอุทยาน --</option>
-                                        <?php
-                                        $parks = $manageObj->showparks();
-                                        foreach ($parks as $park) {
-                                            echo "<option value='{$park['id']}'>{$park['name']}</option>";
-                                        }
-                                        ?>
-                                    </select>
+                            <div class="col-md-8">
+                                <div class="d-none">
+                                    <select id="waiting-programs" multiple></select>
+                                    <select id="waiting-zones" multiple></select>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-12 mb-50">
+                                        <span class="font-weight-bold text-muted small mr-1">โปรแกรม:</span>
+                                        <div id="program-labels-container" class="d-inline-flex flex-wrap align-items-center">
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <span class="font-weight-bold text-muted small mr-1">โซน:</span>
+                                        <div id="zone-labels-container" class="d-inline-flex flex-wrap align-items-center">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="form-group mb-0">
-                                    <label class="font-weight-bold">โปรแกรม (Program)</label>
-                                    <select class="form-control select2" id="waiting-programs" multiple>
-                                        <?php
-                                        $products = $manageObj->showproducts();
-                                        foreach ($products as $product) {
-                                            if (str_contains($product['name'], 'NO TRANSFER')) continue; // ข้ามโปรแกรมที่มีคำว่า NO TRANSFER ในชื่อ เพราะไม่ต้องจัดรถให้
-                                            echo "<option value='{$product['id']}' data-park='{$product['park_id']}'>{$product['name']}</option>";
-                                        }
-                                        ?>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group mb-0">
-                                    <label class="font-weight-bold">โซน (Zone)</label>
-                                    <select class="form-control select2" id="waiting-zones" multiple>
-                                        <?php
-                                        $zones = $manageObj->showzones();
-
-                                        // 1. ตั้งค่า Keyword สำหรับดักจับคำในชื่อโซน
-                                        $zoneGroups = [
-                                            '1. โซนตอนเหนือ (Northern Route)' => ['ไม้ขาว', 'ไนยาง', 'ในทอน', 'Mai Khao', 'Nai Yang', 'Naithon'],
-                                            '2. โซนกลาง-เหนือ (Mid-North Route)' => ['บางเทา', 'ลากูน่า', 'สุรินทร์', 'กมลา', 'Bang Tao', 'Laguna', 'Surin', 'Kamala'],
-                                            '3. โซนศูนย์กลาง (Central Route)' => ['ป่าตอง', 'กะหลิม', 'ตรัยตรัง', 'Patong', 'Kalim', 'Tri Trang'],
-                                            '4. โซนกลาง-ใต้ (Mid-South Route)' => ['กะตะ', 'กะรน', 'Kata', 'Karon'],
-                                            '5. โซนตอนใต้สุด (Deep South Route)' => ['ในหาน', 'ราไวย์', 'ฉลอง', 'Nai Harn', 'Rawai', 'Chalong'],
-                                            '6. โซนเมืองและตะวันออก (East & City)' => ['เมือง', 'ภูเก็ต', 'เกาะสิเหร่', 'แหลมพันวา', 'อ่าวมะขาม', 'Phuket Town', 'Sirey', 'Panwa', 'Makham']
-                                        ];
-
-                                        $categorizedZones = [];
-                                        $otherZones = [];
-
-                                        // 2. วนลูปแยกโซนเข้าตะกร้า
-                                        foreach ($zones as $zone) {
-                                            $found = false;
-                                            $zoneName = strtolower($zone['name']); // สมมติว่าดึงชื่อจาก ['name'] หรือ ['name_th']
-
-                                            foreach ($zoneGroups as $groupName => $keywords) {
-                                                foreach ($keywords as $keyword) {
-                                                    if (stripos($zoneName, strtolower($keyword)) !== false) {
-                                                        $categorizedZones[$groupName][] = $zone;
-                                                        $found = true;
-                                                        break;
-                                                    }
-                                                }
-                                                if ($found) break;
-                                            }
-                                            if (!$found) $otherZones[] = $zone; // ถ้าไม่ตรงกับกลุ่มไหนเลย
-                                        }
-
-                                        // 3. วาด HTML Optgroup
-                                        foreach ($categorizedZones as $groupName => $groupZones) {
-                                            echo "<optgroup label='{$groupName}'>";
-                                            foreach ($groupZones as $z) {
-                                                echo "<option value='{$z['id']}'>{$z['name']}</option>";
-                                            }
-                                            echo "</optgroup>";
-                                        }
-
-                                        if (!empty($otherZones)) {
-                                            echo "<optgroup label='7. โซนอื่นๆ (Other Routes)'>";
-                                            foreach ($otherZones as $z) {
-                                                echo "<option value='{$z['id']}'>{$z['name']}</option>";
-                                            }
-                                            echo "</optgroup>";
-                                        }
-                                        ?>
-                                    </select>
-                                    <!-- <select class="form-control select2" id="waiting-zones" multiple>
-                                        <?php
-                                        $zones = $manageObj->showzones();
-                                        foreach ($zones as $zone) {
-                                            echo "<option value='{$zone['id']}'>{$zone['name']}</option>";
-                                        }
-                                        ?>
-                                    </select> -->
-                                </div>
-                            </div>
-                            <!-- <div class="col-md-1 pt-1">
-                                <button type="button" class="btn btn-primary btn-block" id="btn-fetch-waiting">
-                                    <i data-feather="search"></i> ค้นหา
-                                </button>
-                            </div> -->
                         </div>
                     </form>
                     <!-- filter end -->
@@ -241,17 +161,6 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                     </div>
                                 </div>
 
-                                <div class="row text-center mb-2">
-                                    <div class="col-6 border-right">
-                                        <span class="d-block text-muted small font-weight-bold">PAX COUNTER</span>
-                                        <span class="pax-counter-text text-primary"><span style="font-size:1.5rem;" class="text-secondary">/</span></span>
-                                    </div>
-                                    <div class="col-6">
-                                        <span class="d-block text-muted small font-weight-bold">Remaining</span>
-                                        <span class="pax-counter-text text-success"> Seats</span>
-                                    </div>
-                                </div>
-
                                 <div class="form-group mb-1">
                                     <select class="form-control" id="van-waiting" name="van_waiting">
                                         <option>Select Cars ...</option>
@@ -277,6 +186,17 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                         }
                                         ?>
                                     </select>
+                                </div>
+
+                                <div class="row text-center mb-2">
+                                    <div class="col-6 border-right">
+                                        <span class="d-block text-muted small font-weight-bold">PAX COUNTER</span>
+                                        <span class="pax-counter-text text-primary"><span style="font-size:1.5rem;" class="text-secondary">/</span></span>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="d-block text-muted small font-weight-bold">Remaining</span>
+                                        <span class="pax-counter-text text-success"> Seats</span>
+                                    </div>
                                 </div>
 
                                 <hr class="w-100 my-1">
@@ -382,8 +302,12 @@ $tomorrow = date("Y-m-d", strtotime(" +1 day"));
                                 </div>
 
                                 <div class="mt-auto">
+                                    <button type="button" class="btn btn-warning btn-block mb-1 font-weight-bold" id="btn-save-arrange" style="display: none;">
+                                        <i data-feather="shuffle"></i> บันทึกการสลับคิว
+                                    </button>
+
                                     <button type="button" class="btn btn-danger btn-block mb-1 font-weight-bold" id="btn-remove-van">
-                                        <i data-feather="user-minus"></i> ดีดออก (Remove from Van)
+                                        <i data-feather="user-minus"></i> ดีดออกทั้งคัน (Remove Van)
                                     </button>
                                     <button type="button" class="btn btn-info btn-block mb-1 font-weight-bold">
                                         <i data-feather="printer"></i> พิมพ์ใบงานคันนี้

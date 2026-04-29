@@ -42,66 +42,78 @@ if (isset($_POST['travel_date']) && isset($_POST['product_ids'])) {
     // 1. เตรียมข้อมูล
     foreach ($bookings as $row) {
         $is_private = ($row['bt_type'] == 2) ? true : false;
-
         $row['transfer_mode'] = $is_private ? 'private' : 'join';
-
-        // 🌟 ใช้ remaining_pax แทนยอดเต็ม เพื่อให้โชว์เศษคนที่เหลือจากการ Split
         $row['pax_total'] = (int)$row['remaining_pax'];
-
-        // 🌟 หลอกระบบฝั่งหน้าบ้าน ให้เอาเศษคนไปพักไว้ที่ Adult ก่อน เพื่อเวลาเซฟจะได้เลขที่เป๊ะ
-        $row['adult'] = $row['pax_total'];
-        $row['child'] = 0;
-        $row['infant'] = 0;
-        $row['foc'] = 0;
+        $row['adult'] = (int)$row['sum_adult'];
+        $row['child'] = (int)$row['sum_child'];
+        $row['infant'] = (int)$row['sum_infant'];
+        $row['foc'] = (int)$row['sum_foc'];
 
         $row['guest_name'] = !empty($row['guest_name']) ? $row['guest_name'] : 'Customer';
-
-        $row['country'] = !empty($row['country_code']) ? '<i class="flag-icon flag-icon-'.strtolower($row['country_code']).' mr-50"></i>' : '';
-
-        // 🌟 แก้บั๊ก: บังคับให้เป็น pickup เสมอ (เพราะ SQL เราดึงมาแค่ขาไปแล้ว)
-        // $row['transfer_type'] = 'pickup';
-
+        $row['guest_phone'] = !empty($row['guest_phone']) ? $row['guest_phone'] : '-';
+        $row['nationality'] = !empty($row['nationality']) ? $row['nationality'] : '-';
+        $row['country'] = !empty($row['country_code']) ? '<i class="flag-icon flag-icon-' . strtolower($row['country_code']) . ' mr-50"></i>' : '';
         $row['hotel_name'] = (!empty($row['hotel_name'])) ? $row['hotel_name'] : $row['hotel_pickup'];
-
-        // จัดเวลาให้สวยงาม
         $row['action_time'] = ($row['action_time'] != '00:00:00' && !empty($row['action_time'])) ? date('H:i', strtotime($row['action_time'])) : '-';
+
+        // 🌟 ดึงค่าเส้นทาง (ถ้าไม่ได้ตั้งไว้ให้ไปอยู่ลำดับ 999 ท้ายสุด)
+        $row['zone_route_order'] = isset($row['zone_route_order']) ? (int)$row['zone_route_order'] : 999;
 
         $unsorted_bookings[] = $row;
     }
 
     $final_sorted_list = [];
 
-    // 2. จัดเรียงเส้นทางอัจฉริยะแบบรวดเดียว (ไม่มีแบ่งกรุ๊ปแล้ว)
+    // 🌟 2. จัดเรียงเส้นทางอัจฉริยะแบบ Hybrid (Zone Sequence + Nearest Neighbor)
     if (count($unsorted_bookings) > 0) {
 
-        // ลำดับที่ 1: เรียงตามเวลา (เช้าสุดขึ้นก่อน) และพิกัดเหนือลงใต้
-        usort($unsorted_bookings, function ($a, $b) {
-            $time_cmp = strcmp($a['action_time'], $b['action_time']);
-            if ($time_cmp === 0) {
-                return $b['latitude'] <=> $a['latitude'];
-            }
-            return $time_cmp;
-        });
+        // 2.1 จัดกลุ่ม Booking ตามลำดับโซน (route_order)
+        $grouped_by_zone = [];
+        foreach ($unsorted_bookings as $node) {
+            $grouped_by_zone[$node['zone_route_order']][] = $node;
+        }
 
-        $current_node = array_shift($unsorted_bookings);
-        $final_sorted_list[] = $current_node;
+        // 2.2 เรียงลำดับก้อนโซนจากบนลงล่าง (เช่น 10, 20, 30...)
+        ksort($grouped_by_zone);
 
-        // ลำดับที่ 2: ลากเส้นพิกัด Nearest Neighbor
-        while (count($unsorted_bookings) > 0) {
-            $nearest_idx = 0;
-            $min_distance = 999999;
+        // 2.3 จัดการลากเส้นพิกัด "ภายในแต่ละโซน" ให้ต่อเนื่องกัน
+        foreach ($grouped_by_zone as $zone_order => $zone_bookings) {
 
-            foreach ($unsorted_bookings as $idx => $node) {
-                $dist = getDistance($current_node['latitude'], $current_node['longitude'], $node['latitude'], $node['longitude']);
-                if ($dist < $min_distance) {
-                    $min_distance = $dist;
-                    $nearest_idx = $idx;
+            // หาจุดเริ่มต้นของโซนนี้ (เอาคนที่เวลารับเช้าสุดขึ้นก่อน หรือพิกัดอยู่เหนือสุด)
+            usort($zone_bookings, function ($a, $b) {
+                $time_cmp = strcmp($a['action_time'], $b['action_time']);
+                if ($time_cmp === 0) {
+                    return $b['latitude'] <=> $a['latitude']; // ถ้าเวลาเท่ากัน เอาเหนือสุดขึ้นก่อน
                 }
-            }
+                return $time_cmp;
+            });
 
-            $current_node = $unsorted_bookings[$nearest_idx];
+            // ดึงคนแรกออกมาเป็นจุดตั้งต้นของโซนนี้
+            $current_node = array_shift($zone_bookings);
             $final_sorted_list[] = $current_node;
-            array_splice($unsorted_bookings, $nearest_idx, 1);
+
+            // ลากเส้นหาจุดที่ใกล้ที่สุดภายในโซนเดียวกัน (Nearest Neighbor)
+            while (count($zone_bookings) > 0) {
+                $nearest_idx = 0;
+                $min_distance = 999999;
+
+                foreach ($zone_bookings as $idx => $node) {
+                    // คำนวณระยะห่างด้วย Haversine Formula
+                    $dist = getDistance($current_node['latitude'], $current_node['longitude'], $node['latitude'], $node['longitude']);
+
+                    if ($dist < $min_distance) {
+                        $min_distance = $dist;
+                        $nearest_idx = $idx;
+                    }
+                }
+
+                // ขยับไปจุดที่ใกล้ที่สุด
+                $current_node = $zone_bookings[$nearest_idx];
+                $final_sorted_list[] = $current_node;
+
+                // เอาจุดที่จัดแล้วออกจากตะกร้าย่อย
+                array_splice($zone_bookings, $nearest_idx, 1);
+            }
         }
     }
 

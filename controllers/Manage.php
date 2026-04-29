@@ -963,10 +963,12 @@ class Manage extends DB
                 SELECT BMT.arrange, BMT.pax as assigned_pax, 'pickup' as transfer_type,
                        BT.id as bt_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time,
                        HOTELP.name as hotel_name, BT.room_no,
-                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality
+                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality,
+                       PROD.name as product_name -- 🌟 เพิ่มดึงชื่อโปรแกรม
                 FROM booking_manage_transfer BMT
                 JOIN booking_transfer BT ON BMT.booking_transfer_id = BT.id
                 JOIN booking_products BP ON BT.booking_products_id = BP.id
+                LEFT JOIN products PROD ON BP.product_id = PROD.id -- 🌟 Join ตารางโปรแกรม
                 JOIN bookings BO ON BP.booking_id = BO.id
                 LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
                 LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
@@ -979,10 +981,12 @@ class Manage extends DB
                 SELECT DT.arrange, DT.pax as assigned_pax, 'dropoff' as transfer_type,
                        BT.id as bt_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time,
                        HOTELD.name as hotel_name, BT.room_no,
-                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality
+                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality,
+                       PROD.name as product_name -- 🌟 เพิ่มดึงชื่อโปรแกรม
                 FROM dropoff_transfers DT
                 JOIN booking_transfer BT ON DT.booking_transfer_id = BT.id
                 JOIN booking_products BP ON BT.booking_products_id = BP.id
+                LEFT JOIN products PROD ON BP.product_id = PROD.id -- 🌟 Join ตารางโปรแกรม
                 JOIN bookings BO ON BP.booking_id = BO.id
                 LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
                 LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
@@ -995,10 +999,12 @@ class Manage extends DB
                 SELECT OT.arrange, OT.pax as assigned_pax, 'overnight' as transfer_type,
                        BT.id as bt_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time,
                        HOTELD.name as hotel_name, BT.room_no,
-                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality
+                       CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality,
+                       PROD.name as product_name -- 🌟 เพิ่มดึงชื่อโปรแกรม
                 FROM overnight_transfers OT
                 JOIN booking_transfer BT ON OT.booking_transfer_id = BT.id
                 JOIN booking_products BP ON BT.booking_products_id = BP.id
+                LEFT JOIN products PROD ON BP.product_id = PROD.id -- 🌟 Join ตารางโปรแกรม
                 JOIN bookings BO ON BP.booking_id = BO.id
                 LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
                 LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
@@ -1023,6 +1029,7 @@ class Manage extends DB
             }
             $van['total_pax'] = $total_pax;
             $van['zones_summary'] = implode(', ', $zones);
+            $van['programs_summary'] = implode(', ', array_unique(array_filter(array_column($van['bookings'], 'product_name'))));
         }
         return $vans;
     }
@@ -1195,13 +1202,15 @@ class Manage extends DB
 
         $query = "SELECT BO.id as bo_id, BO.voucher_no_agent as voucher_no, BT.id as bt_id, BP.product_id, COMP.name as company_name,
                     BT.pickup_id as zone_id, ZONE_P.name_th as zone_name, ZONE_P.color_hex, BT.start_pickup as action_time, PROD.name as product_name,
+                    ZONE_P.route_order as zone_route_order,
                     HOTELP.name as hotel_name, HOTELP.lat as latitude, HOTELP.lng as longitude,
                     'pickup' as transfer_type_tag,
                     BTYE.name as booking_type_name, CATE.transfer as category_transfer,
                     BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, 
                     CUS.name as guest_name, CUS.telephone as guest_phone, 
-                    NATION.name as nationality, NATION.country_code, BP.note as special_request, BO.updated_at,
-                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) as remaining_pax
+                    NATION.name as nationality, NATION.iso2 as country_code, BP.note as special_request, BO.updated_at, 
+                    BPR_SUM.sum_adult, BPR_SUM.sum_child, BPR_SUM.sum_infant, BPR_SUM.sum_foc,
+                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_infant,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) as remaining_pax
                 FROM bookings BO
                 JOIN booking_products BP ON BO.id = BP.booking_id
                 JOIN booking_transfer BT ON BP.id = BT.booking_products_id
@@ -1232,7 +1241,7 @@ class Manage extends DB
 
                 AND BP.is_deleted = 0
                 -- 🌟 กรองเอาเฉพาะคนที่ยังเหลืออยู่ (ยังไม่ถูกจัด หรือจัดไปยังไม่ครบ)
-                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) > 0 " .
+                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_infant,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) > 0 " .
             ((!empty($in_zone)) ? " AND ZONE_P.id IN ($in_zone) " : "") . "
                 GROUP BY BT.id
 
@@ -1241,12 +1250,14 @@ class Manage extends DB
                 -- 2. Dropoff
                 SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name,
                     BT.dropoff_id, ZONE_D.name_th, ZONE_D.color_hex, BT.end_pickup, PROD.name,
+                    ZONE_D.route_order as zone_route_order,
                     HOTELD.name, HOTELD.lat, HOTELD.lng,
                     'dropoff' as transfer_type_tag,
                     BTYE.name, CATE.transfer,
                     BT.room_no, BT.transfer_type, BT.hotel_pickup, 
-                    CUS.name, CUS.telephone, NATION.name, NATION.country_code, BP.note, BO.updated_at,
-                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) as remaining_pax
+                    CUS.name, CUS.telephone, NATION.name, NATION.iso2 as country_code, BP.note, BO.updated_at,
+                    BPR_SUM.sum_adult, BPR_SUM.sum_child, BPR_SUM.sum_infant, BPR_SUM.sum_foc,
+                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_infant,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) as remaining_pax
                 FROM bookings BO
                 JOIN booking_products BP ON BO.id = BP.booking_id
                 JOIN booking_transfer BT ON BP.id = BT.booking_products_id
@@ -1275,7 +1286,7 @@ class Manage extends DB
                 AND (BP.overnight IS NULL OR BP.overnight = '0000-00-00')
 
                 AND BP.is_deleted = 0 
-                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) > 0 " .
+                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_infant,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) > 0 " .
             ((!empty($in_zone)) ? " AND ZONE_D.id IN ($in_zone) " : "") . "
                 GROUP BY BT.id
 
@@ -1284,12 +1295,14 @@ class Manage extends DB
                 -- 3. Overnight
                 SELECT BO.id, BO.voucher_no_agent, BT.id, BP.product_id, COMP.name,
                     BT.dropoff_id, ZONE_D.name_th, ZONE_D.color_hex, BT.end_pickup, PROD.name,
+                    ZONE_D.route_order as zone_route_order,
                     HOTELD.name, HOTELD.lat, HOTELD.lng,
                     'overnight' as transfer_type_tag,
                     BTYE.name, CATE.transfer,
                     BT.room_no, BT.transfer_type, BT.hotel_pickup, 
-                    CUS.name, CUS.telephone, NATION.name, NATION.country_code, BP.note, BO.updated_at,
-                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) as remaining_pax
+                    CUS.name, CUS.telephone, NATION.name, NATION.iso2 as country_code, BP.note, BO.updated_at, 
+                    BPR_SUM.sum_adult, BPR_SUM.sum_child, BPR_SUM.sum_infant, BPR_SUM.sum_foc,
+                    ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_infant,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) as remaining_pax
                 FROM bookings BO
                 JOIN booking_products BP ON BO.id = BP.booking_id
                 JOIN booking_transfer BT ON BP.id = BT.booking_products_id
@@ -1316,7 +1329,7 @@ class Manage extends DB
                 AND BO.booking_status_id NOT IN (3, 4) 
 
                 AND BP.is_deleted = 0
-                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) > 0 " .
+                AND ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_infant,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) > 0 " .
             ((!empty($in_zone)) ? " AND ZONE_D.id IN ($in_zone) " : "") . "
                 GROUP BY BT.id
             ";

@@ -940,41 +940,79 @@ class Manage extends DB
     }
 
     // ดึงข้อมูลรถที่จัดแล้ว พร้อมรายชื่อลูกค้าข้างใน (Assigned Vans & Bookings)
-    public function get_assigned_vans_with_bookings(string $travel_date)
+    public function get_assigned_vans_with_bookings(string $travel_date, array $product_ids = [], array $zone_ids = [])
     {
-        // 1. ดึงข้อมูลรถทั้งหมดในวันนั้น
+        // 1. เตรียมเงื่อนไข Filter (ถ้ามีการเลือก)
+        $filter_query = "";
+        $in_products = !empty($product_ids) ? implode(',', array_map('intval', $product_ids)) : "";
+        $in_zones = !empty($zone_ids) ? implode(',', array_map('intval', $zone_ids)) : "";
+
+        // ถ้ามีการกรอง ให้เช็คว่าในรถคันนั้นมี Booking ที่ตรงกับเงื่อนไขหรือไม่
+        if (!empty($in_products) || !empty($in_zones)) {
+
+            // 🌟 แก้บั๊ก: ต้องกรองข้อมูลที่ถูกลบ (is_deleted = 0) และยกเลิก (booking_status_id = 3,4) ออกด้วยเสมอ!
+            $sub_where = "WHERE BP.is_deleted = 0 AND BO.booking_status_id NOT IN (3, 4) ";
+
+            if (!empty($in_products)) {
+                $sub_where .= " AND BP.product_id IN ($in_products)";
+            }
+            if (!empty($in_zones)) {
+                $sub_where .= " AND (BT.pickup_id IN ($in_zones) OR BT.dropoff_id IN ($in_zones))";
+            }
+
+            // 🌟 เพิ่ม JOIN bookings BO เพื่อให้เช็คสถานะการยกเลิกได้
+            $filter_query = " AND MT.id IN (
+                SELECT manage_id FROM (
+                    SELECT manage_id FROM booking_manage_transfer BMT 
+                    JOIN booking_transfer BT ON BMT.booking_transfer_id = BT.id
+                    JOIN booking_products BP ON BT.booking_products_id = BP.id
+                    JOIN bookings BO ON BP.booking_id = BO.id $sub_where
+                    UNION
+                    SELECT manage_id FROM dropoff_transfers DT 
+                    JOIN booking_transfer BT ON DT.booking_transfer_id = BT.id
+                    JOIN booking_products BP ON BT.booking_products_id = BP.id
+                    JOIN bookings BO ON BP.booking_id = BO.id $sub_where
+                    UNION
+                    SELECT manage_id FROM overnight_transfers OT 
+                    JOIN booking_transfer BT ON OT.booking_transfer_id = BT.id
+                    JOIN booking_products BP ON BT.booking_products_id = BP.id
+                    JOIN bookings BO ON BP.booking_id = BO.id $sub_where
+                ) as matched_vans
+            )";
+        }
+
+        // 2. ดึงข้อมูลรถทั้งหมดในวันนั้น (บวกเงื่อนไข Filter ถ้ามี)
         $q_vans = "SELECT MT.id, MT.car_id, MT.driver_id, MT.seat, MT.note, MT.travel_date,
                           C.name as car_name, D.name as driver_name, D.number_plate, D.telephone
                    FROM manage_transfer MT
                    LEFT JOIN cars C ON MT.car_id = C.id
                    LEFT JOIN drivers D ON MT.driver_id = D.id
-                   WHERE MT.travel_date = ?";
+                   WHERE MT.travel_date = ? $filter_query";
+
         $stmt_vans = $this->connection->prepare($q_vans);
         $stmt_vans->bind_param("s", $travel_date);
         $stmt_vans->execute();
         $vans = $stmt_vans->get_result()->fetch_all(MYSQLI_ASSOC);
 
-        // 2. ดึง Booking ยัดใส่รถแต่ละคัน
+        // 3. ดึง Booking ยัดใส่รถแต่ละคัน
         foreach ($vans as &$van) {
             $manage_id = $van['id'];
-
-            // Query ดึง Booking ที่ผูกกับรถคันนี้ (รวม 3 ตารางด้วย UNION ALL)
             $q_bookings = "
                 SELECT BMT.arrange, BMT.pax as assigned_pax, 'pickup' as transfer_type,
                        BT.id as bt_id, ZONE_P.name_th as zone_name, BT.start_pickup as action_time,
                        HOTELP.name as hotel_name, BT.room_no,
                        CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality,
-                       PROD.name as product_name -- 🌟 เพิ่มดึงชื่อโปรแกรม
+                       PROD.name as product_name
                 FROM booking_manage_transfer BMT
                 JOIN booking_transfer BT ON BMT.booking_transfer_id = BT.id
                 JOIN booking_products BP ON BT.booking_products_id = BP.id
-                LEFT JOIN products PROD ON BP.product_id = PROD.id -- 🌟 Join ตารางโปรแกรม
+                LEFT JOIN products PROD ON BP.product_id = PROD.id
                 JOIN bookings BO ON BP.booking_id = BO.id
                 LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
                 LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
                 LEFT JOIN zones ZONE_P ON BT.pickup_id = ZONE_P.id
                 LEFT JOIN hotel HOTELP ON BT.hotel_pickup_id = HOTELP.id
-                WHERE BMT.manage_id = $manage_id AND BP.is_deleted = 0
+                WHERE BMT.manage_id = $manage_id AND BP.is_deleted = 0 AND BO.booking_status_id NOT IN (3, 4)
                 
                 UNION ALL
                 
@@ -982,17 +1020,17 @@ class Manage extends DB
                        BT.id as bt_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time,
                        HOTELD.name as hotel_name, BT.room_no,
                        CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality,
-                       PROD.name as product_name -- 🌟 เพิ่มดึงชื่อโปรแกรม
+                       PROD.name as product_name
                 FROM dropoff_transfers DT
                 JOIN booking_transfer BT ON DT.booking_transfer_id = BT.id
                 JOIN booking_products BP ON BT.booking_products_id = BP.id
-                LEFT JOIN products PROD ON BP.product_id = PROD.id -- 🌟 Join ตารางโปรแกรม
+                LEFT JOIN products PROD ON BP.product_id = PROD.id
                 JOIN bookings BO ON BP.booking_id = BO.id
                 LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
                 LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
                 LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
                 LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-                WHERE DT.manage_id = $manage_id AND BP.is_deleted = 0
+                WHERE DT.manage_id = $manage_id AND BP.is_deleted = 0 AND BO.booking_status_id NOT IN (3, 4)
                 
                 UNION ALL
                 
@@ -1000,36 +1038,39 @@ class Manage extends DB
                        BT.id as bt_id, ZONE_D.name_th as zone_name, BT.end_pickup as action_time,
                        HOTELD.name as hotel_name, BT.room_no,
                        CUS.name as guest_name, CUS.telephone as guest_phone, NATION.name as nationality,
-                       PROD.name as product_name -- 🌟 เพิ่มดึงชื่อโปรแกรม
+                       PROD.name as product_name
                 FROM overnight_transfers OT
                 JOIN booking_transfer BT ON OT.booking_transfer_id = BT.id
                 JOIN booking_products BP ON BT.booking_products_id = BP.id
-                LEFT JOIN products PROD ON BP.product_id = PROD.id -- 🌟 Join ตารางโปรแกรม
+                LEFT JOIN products PROD ON BP.product_id = PROD.id
                 JOIN bookings BO ON BP.booking_id = BO.id
                 LEFT JOIN customers CUS ON BO.id = CUS.booking_id AND CUS.head = 1
                 LEFT JOIN nationalitys NATION ON CUS.nationality_id = NATION.id
                 LEFT JOIN zones ZONE_D ON BT.dropoff_id = ZONE_D.id
                 LEFT JOIN hotel HOTELD ON BT.hotel_dropoff_id = HOTELD.id
-                WHERE OT.manage_id = $manage_id AND BP.is_deleted = 0
+                WHERE OT.manage_id = $manage_id AND BP.is_deleted = 0 AND BO.booking_status_id NOT IN (3, 4)
                 
                 ORDER BY arrange ASC, action_time ASC
             ";
 
             $van['bookings'] = $this->connection->query($q_bookings)->fetch_all(MYSQLI_ASSOC);
 
-            // คำนวณยอดคนรวม และสรุปโซน
             $total_pax = 0;
             $zones = [];
+            $progs = [];
             foreach ($van['bookings'] as &$b) {
                 $total_pax += $b['assigned_pax'];
                 if (!empty($b['zone_name']) && !in_array($b['zone_name'], $zones)) {
                     $zones[] = $b['zone_name'];
                 }
+                if (!empty($b['product_name']) && !in_array($b['product_name'], $progs)) {
+                    $progs[] = $b['product_name'];
+                }
                 $b['action_time'] = ($b['action_time'] != '00:00:00' && !empty($b['action_time'])) ? date('H:i', strtotime($b['action_time'])) : '-';
             }
             $van['total_pax'] = $total_pax;
             $van['zones_summary'] = implode(', ', $zones);
-            $van['programs_summary'] = implode(', ', array_unique(array_filter(array_column($van['bookings'], 'product_name'))));
+            $van['programs_summary'] = implode(', ', $progs);
         }
         return $vans;
     }

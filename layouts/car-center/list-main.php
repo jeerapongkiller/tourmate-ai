@@ -635,7 +635,8 @@
                 }
 
                 // สั่งโหลดข้อมูลตารางใหม่ทันทีแบบเนียนๆ
-                fetchCarCenterData();
+                fetchCarCenterData(); // โหลดตารางรอจัดรถ (ซ้าย)
+                fetchAssignedVans(); // โหลดการ์ดรถที่จัดแล้ว (ขวา)
             });
 
             // 2. ฟังก์ชันโหลดตารางจัดรถ (เหมือนเดิม)
@@ -644,9 +645,11 @@
                 let productIds = $('#waiting-programs').val();
                 let zoneIds = $('#waiting-zones').val();
 
+                // 🌟 ถ้าไม่ได้เลือกโปรแกรมอะไรเลย ให้เคลียร์หน้าจอฝั่งซ้าย และเซ็ตเลขเป็น 0
                 if (!productIds || productIds.length === 0) {
                     masterPoolData = [];
                     waitingPoolData = [];
+                    $('#join-tab .badge').text('(0 คน)'); // เซ็ตเลขเป็น 0
                     renderTables();
                     return;
                 }
@@ -682,11 +685,11 @@
                             waitingPoolData = JSON.parse(JSON.stringify(processedData));
 
                             let totalWaitingPax = processedData.reduce((sum, b) => sum + parseInt(b.pax_total), 0);
-                            $('#join-tab .badge').text(`(${totalWaitingPax} คน)`);
+                            $('#main-waiting-tab .badge').text(`(${totalWaitingPax} คน)`);
 
-                            if (res.summary) {
-                                $('#private-tab .badge').text(`(${res.summary.total_vans} คัน / ${res.summary.total_pax} คน)`);
-                            }
+                            // if (res.summary) {
+                            //     $('#main-assigned-tab .badge').text(`(${res.summary.total_vans} คัน / ${res.summary.total_pax} คน)`);
+                            // }
 
                             updateFilterCounts();
                             renderTables();
@@ -1254,7 +1257,7 @@
 
                                 // 🌟 ไม้ตาย UX: ถ้าตะกี้เป็นการ "แก้ไขรถ" ให้ดีดกลับไปแท็บ "จัดรถแล้ว" อัตโนมัติ เพื่อดูผลงาน
                                 if (wasEditing) {
-                                    $('#private-tab').tab('show');
+                                    $('#main-assigned-tab').tab('show');
                                 }
                             });
                         }
@@ -1301,16 +1304,33 @@
             // 1. ฟังก์ชันดึงข้อมูลรถที่จัดแล้วทั้งหมด
             function fetchAssignedVans() {
                 let travelDate = $('#waiting-date').val();
+                let productIds = $('#waiting-programs').val(); // ดึงโปรแกรมที่เลือก
+                let zoneIds = $('#waiting-zones').val(); // ดึงโซนที่เลือก
+
+                // 🌟 ถ้าไม่ได้เลือกโปรแกรมอะไรเลย ให้เคลียร์หน้าจอฝั่งขวา เลขจะเป็น 0 อัตโนมัติ
+                if (!productIds || productIds.length === 0) {
+                    assignedVansData = [];
+                    renderAssignedVansGrid(); // ฟังก์ชันนี้จะจัดการเซ็ตเลข 0 และซ่อนแผงด้านขวาให้เอง
+                    return;
+                }
+
                 $.ajax({
                     url: "pages/car-center/function/get-assigned-vans.php",
                     type: "POST",
                     dataType: "json",
                     data: {
-                        travel_date: travelDate
+                        travel_date: travelDate,
+                        product_ids: productIds, // 🌟 ส่งตัวกรองไปให้ PHP ด้วย
+                        zone_ids: zoneIds
                     },
                     success: function(res) {
+                        if (typeof res === 'string') res = JSON.parse(res);
                         if (res.status === 'success') {
                             assignedVansData = res.data;
+                            renderAssignedVansGrid();
+                        } else {
+                            // กรณีไม่มีรถตรงตามเงื่อนไข ให้เคลียร์หน้าจอ
+                            assignedVansData = [];
                             renderAssignedVansGrid();
                         }
                     }
@@ -1320,16 +1340,22 @@
             // 2. ฟังก์ชันวาด Card รถ ฝั่งซ้าย
             function renderAssignedVansGrid() {
                 let html = '';
+
+                // 🌟 ตัวแปรสำหรับนับจำนวนรถและจำนวนคน ที่ผ่านการ Filter แล้ว
+                let countVans = assignedVansData.length;
+                let countPax = 0;
+
                 assignedVansData.forEach((van, index) => {
+                    // 🌟 บวกยอดคนสะสมเข้าไป
+                    countPax += parseInt(van.total_pax) || 0;
+
                     let isFull = van.total_pax >= van.seat;
                     let progressPct = (van.total_pax / van.seat) * 100;
                     if (progressPct > 100) progressPct = 100;
 
-                    // 🌟 1. ดึงชื่อโปรแกรมทั้งหมดในรถคันนี้มารวมกันแบบไม่ซ้ำ (Unique)
                     let programs = [...new Set(van.bookings.map(b => b.product_name))].filter(p => p).join(', ');
                     if (!programs) programs = '-';
 
-                    // 🌟 2. เช็คว่ามี Dropoff หรือ Overnight ไหม เพื่อสร้าง Badge
                     let hasDropoff = van.bookings.some(b => b.transfer_type === 'dropoff');
                     let hasOvernight = van.bookings.some(b => b.transfer_type === 'overnight');
                     let tagsHtml = '';
@@ -1356,9 +1382,9 @@
                                         </div>
                                     </div>
                                     <div class="mb-1 small">
-                                        <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>${van.driver_name || 'ไม่ระบุ'}</b> ${tagsHtml}</div>
+                                        <div><i data-feather="user" width="12"></i> ผู้ขับ: <b>${van.driver_name || 'ไม่ระบุ'}</b></div>
                                         <div class="text-truncate" title="${van.zones_summary}"><i data-feather="map-pin" width="12"></i> โซน: <b>${van.zones_summary || '-'}</b></div>
-                                        <div class="text-truncate mt-25"><i data-feather="flag" width="12"></i> โปรแกรม: <b>${programs}</b></div>
+                                        <div class="text-truncate text-primary mt-25"><i data-feather="flag" width="12"></i> โปรแกรม: <b>${programs}</b> ${tagsHtml}</div>
                                     </div>
                                     <div class="progress ${pBarClass} van-progress mb-1">
                                         <div class="progress-bar" role="progressbar" style="width: ${progressPct}%"></div>
@@ -1380,6 +1406,10 @@
 
                 $('#assigned-van-grid').html(html);
                 if (feather) feather.replace();
+
+                // 🌟 อัปเดตตัวเลขบน Tab ให้ตรงกับข้อมูลหน้าจอแบบ Real-time
+                $('#main-assigned-tab .badge').text(`(${countVans} คัน / ${countPax} คน)`);
+
                 renderAssignedVanDetails();
             }
 
@@ -1506,8 +1536,8 @@
 
             // 5. ดักจับเมื่อกดสลับ Tab ไปที่ "จัดรถแล้ว" ให้โหลดข้อมูล
             $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
-                if ($(e.target).attr('id') === 'private-tab') { // id="private-tab" คือแท็บจัดรถแล้วของคุณ
-                    currentSelectedManageId = null; // รีเซ็ตเพื่อดึงคันแรกใหม่
+                if ($(e.target).attr('id') === 'main-assigned-tab') {
+                    currentSelectedManageId = null;
                     fetchAssignedVans();
                 }
             });
@@ -1688,7 +1718,7 @@
                     $('#append-mode-alert').removeClass('d-none');
                     $('#btn-assign-van').html('<i data-feather="save"></i> UPDATE VAN');
 
-                    $('#join-tab').tab('show');
+                    $('#main-waiting-tab').tab('show');
 
                     // 5. วาดตารางใหม่ (เพื่อให้ลูกค้าในรถคันนี้หายไปจากตารางซ้ายมือ)
                     renderTables();

@@ -18,6 +18,7 @@ class Zone extends DB
             LEFT JOIN provinces POV
                 ON ZO.provinces = POV.id
             WHERE ZO.is_deleted = 0
+            ORDER BY ZO.route_order ASC, ZO.id DESC
     ";
         $statement = $this->connection->prepare($query);
         $statement->execute();
@@ -95,7 +96,7 @@ class Zone extends DB
 
         $bind_types .= "i";
         array_push($params, $is_approved);
-       
+
         $statement = $this->connection->prepare($query);
         !empty($bind_types) ? $statement->bind_param($bind_types, ...$params) : '';
 
@@ -116,7 +117,7 @@ class Zone extends DB
         $query .= " name = ?,";
         $bind_types .= "s";
         array_push($params, $name);
-     
+
         $query .= " name_th = ?,";
         $bind_types .= "s";
         array_push($params, $name_th);
@@ -209,6 +210,8 @@ class Zone extends DB
             array_push($params, '%' . $name . '%');
         }
 
+        $query .= " ORDER BY zones.route_order ASC, zones.id DESC";
+
         $statement = $this->connection->prepare($query);
         !empty($bind_types) ? $statement->bind_param($bind_types, ...$params) : '';
         $statement->execute();
@@ -218,7 +221,18 @@ class Zone extends DB
         return $data;
     }
 
+    // 🌟 ฟังก์ชันสำหรับอัปเดตลำดับเส้นทาง
+    public function update_route_order(array $ordered_ids)
+    {
+        $query = "UPDATE zones SET route_order = ? WHERE id = ?";
+        $stmt = $this->connection->prepare($query);
 
-   
-    
+        $order = 10; // รันทีละ 10 เผื่ออนาคตมีโซนแทรกกลาง จะได้ใส่เลข 15 ได้
+        foreach ($ordered_ids as $id) {
+            $stmt->bind_param("ii", $order, $id);
+            $stmt->execute();
+            $order += 10;
+        }
+        return true;
+    }
 }

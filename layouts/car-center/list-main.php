@@ -708,7 +708,7 @@
                                 <br><small class="text-muted">Time: ${b.action_time}</small>
                             </td>
                             <td>${b.hotel_name} ${typeBadge}<br><small class="text-muted">Room: ${b.room_no}</small></td>
-                            <td>${b.guest_name}<br><small class="text-muted">Nation: ${b.nationality}, Tel: ${b.guest_phone}</small></td>
+                            <td>${b.guest_name} ${b.country} <br><small class="text-muted">Nation: ${b.nationality}, Tel: ${b.guest_phone}</small></td>
                             <td>${b.voucher_no}<br><small class="text-muted">Agent: ${b.company_name}</small></td>
                             <td class="text-center">${b.product_name}</td>
                             <td class="text-center font-weight-bold text-primary">${b.pax_total}</td>

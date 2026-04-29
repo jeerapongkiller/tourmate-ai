@@ -1200,7 +1200,7 @@ class Manage extends DB
                     BTYE.name as booking_type_name, CATE.transfer as category_transfer,
                     BT.room_no, BT.transfer_type as bt_type, BT.hotel_pickup, 
                     CUS.name as guest_name, CUS.telephone as guest_phone, 
-                    NATION.name as nationality, BP.note as special_request, BO.updated_at,
+                    NATION.name as nationality, NATION.country_code, BP.note as special_request, BO.updated_at,
                     ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(BMT_SUM.assigned_pax, 0)) as remaining_pax
                 FROM bookings BO
                 JOIN booking_products BP ON BO.id = BP.booking_id
@@ -1245,7 +1245,7 @@ class Manage extends DB
                     'dropoff' as transfer_type_tag,
                     BTYE.name, CATE.transfer,
                     BT.room_no, BT.transfer_type, BT.hotel_pickup, 
-                    CUS.name, CUS.telephone, NATION.name, BP.note, BO.updated_at,
+                    CUS.name, CUS.telephone, NATION.name, NATION.country_code, BP.note, BO.updated_at,
                     ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(DT_SUM.assigned_pax, 0)) as remaining_pax
                 FROM bookings BO
                 JOIN booking_products BP ON BO.id = BP.booking_id
@@ -1288,7 +1288,7 @@ class Manage extends DB
                     'overnight' as transfer_type_tag,
                     BTYE.name, CATE.transfer,
                     BT.room_no, BT.transfer_type, BT.hotel_pickup, 
-                    CUS.name, CUS.telephone, NATION.name, BP.note, BO.updated_at,
+                    CUS.name, CUS.telephone, NATION.name, NATION.country_code, BP.note, BO.updated_at,
                     ((IFNULL(BPR_SUM.sum_adult,0) + IFNULL(BPR_SUM.sum_child,0) + IFNULL(BPR_SUM.sum_foc,0)) - IFNULL(OT_SUM.assigned_pax, 0)) as remaining_pax
                 FROM bookings BO
                 JOIN booking_products BP ON BO.id = BP.booking_id

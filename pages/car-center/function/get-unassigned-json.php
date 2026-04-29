@@ -56,6 +56,8 @@ if (isset($_POST['travel_date']) && isset($_POST['product_ids'])) {
 
         $row['guest_name'] = !empty($row['guest_name']) ? $row['guest_name'] : 'Customer';
 
+        $row['country'] = !empty($row['country_code']) ? '<i class="flag-icon flag-icon-'.strtolower($row['country_code']).' mr-50"></i>' : '';
+
         // 🌟 แก้บั๊ก: บังคับให้เป็น pickup เสมอ (เพราะ SQL เราดึงมาแค่ขาไปแล้ว)
         // $row['transfer_type'] = 'pickup';
 

@@ -39,6 +39,7 @@
     <link rel="stylesheet" type="text/css" href="app-assets/css/plugins/forms/pickers/form-flat-pickr.css">
     <link rel="stylesheet" type="text/css" href="app-assets/css/pages/app-user.css">
     <link rel="stylesheet" type="text/css" href="app-assets/fonts/fontawesome/css/all.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="app-assets/vendors/css/extensions/dragula.min.css">
     <!-- END: Page CSS-->
 
     <!-- BEGIN: Custom CSS-->
@@ -75,7 +76,7 @@
     <!-- BEGIN: Vendor JS-->
     <script src="app-assets/vendors/js/vendors.min.js"></script>
     <!-- BEGIN Vendor JS-->
-    
+
 
     <!-- BEGIN: Page Vendor JS-->
     <script src="app-assets/vendors/js/tables/datatable/jquery.dataTables.min.js"></script>
@@ -88,6 +89,7 @@
     <script src="app-assets/vendors/js/forms/validation/jquery.validate.min.js"></script>
     <script src="app-assets/vendors/js/pickers/flatpickr/flatpickr.min.js"></script>
     <script src="app-assets/fonts/fontawesome/js/all.js"></script>
+    <script src="app-assets/vendors/js/extensions/dragula.min.js"></script>
     <!-- END: Page Vendor JS-->
 
     <!-- BEGIN Sweetalert2 JS -->
@@ -172,7 +174,7 @@
             $('.place-list-table').DataTable({
                 "searching": false,
                 order: [
-                    [1, 'asc']
+                    // [1, 'asc']
                 ],
                 dom: '<"d-flex justify-content-between align-items-center header-actions mx-1 row mt-75"' +
                     '<"col-lg-12 col-xl-6" l>' +
@@ -191,15 +193,26 @@
                 },
                 // Buttons with Dropdown
                 buttons: [{
-                    text: 'Add New Zone',
-                    className: 'add-new btn btn-primary mt-50',
-                    init: function(api, node, config) {
-                        $(node).removeClass('btn-secondary');
+                        text: '<i data-feather="move"></i> จัดเรียงลำดับเส้นทาง',
+                        className: 'btn btn-warning mt-50 mr-1',
+                        init: function(api, node, config) {
+                            $(node).removeClass('btn-secondary');
+                        },
+                        action: function(api, node, config) {
+                            $('#modal-reorder-zones').modal('show');
+                        }
                     },
-                    action: function(api, node, config) {
-                        window.location.href = './?pages=zone/create';
+                    {
+                        text: 'Add New Zone',
+                        className: 'add-new btn btn-primary mt-50',
+                        init: function(api, node, config) {
+                            $(node).removeClass('btn-secondary');
+                        },
+                        action: function(api, node, config) {
+                            window.location.href = './?pages=zone/create';
+                        }
                     }
-                }],
+                ],
                 language: {
                     paginate: {
                         // remove previous & next text from pagination
@@ -264,7 +277,7 @@
                             $('.place-list-table').DataTable({
                                 "searching": false,
                                 order: [
-                                    [1, 'asc']
+                                    // [1, 'asc']
                                 ],
                                 dom: '<"d-flex justify-content-between align-items-center header-actions mx-1 row mt-75"' +
                                     '<"col-lg-12 col-xl-6" l>' +
@@ -283,15 +296,26 @@
                                 },
                                 // Buttons with Dropdown
                                 buttons: [{
-                                    text: 'Add New Zone',
-                                    className: 'add-new btn btn-primary mt-50',
-                                    init: function(api, node, config) {
-                                        $(node).removeClass('btn-secondary');
+                                        text: '<i data-feather="move"></i> จัดเรียงลำดับเส้นทาง',
+                                        className: 'btn btn-warning mt-50 mr-1',
+                                        init: function(api, node, config) {
+                                            $(node).removeClass('btn-secondary');
+                                        },
+                                        action: function(api, node, config) {
+                                            $('#modal-reorder-zones').modal('show');
+                                        }
                                     },
-                                    action: function(api, node, config) {
-                                        window.location.href = './?pages=zone/create';
+                                    {
+                                        text: 'Add New Zone',
+                                        className: 'add-new btn btn-primary mt-50',
+                                        init: function(api, node, config) {
+                                            $(node).removeClass('btn-secondary');
+                                        },
+                                        action: function(api, node, config) {
+                                            window.location.href = './?pages=zone/create';
+                                        }
                                     }
-                                }],
+                                ],
                                 language: {
                                     paginate: {
                                         // remove previous & next text from pagination
@@ -311,6 +335,109 @@
                     }
                 });
                 e.preventDefault();
+            });
+
+            // ---------------------------------------------------------
+            // 🚐 ระบบจัดเรียงลำดับโซน (Dragula) พร้อม Auto-Scroll
+            // ---------------------------------------------------------
+            if ($('#zone-sortable-list').length) {
+                let zoneDragula = dragula([document.getElementById('zone-sortable-list')], {
+                    moves: function(el, container, handle) {
+                        return handle.classList.contains('cursor-move');
+                    }
+                });
+
+                // --- 🌟 เริ่มโค้ดเวทมนตร์ Auto-Scroll ---
+                let scrollContainer = document.getElementById('zone-sortable-list');
+                let isDraggingZone = false;
+                let scrollSpeed = 0;
+                let scrollAnimationFrame;
+
+                // เมื่อเริ่มลาก (Drag)
+                zoneDragula.on('drag', function() {
+                    isDraggingZone = true;
+                    autoScrollLoop();
+                });
+
+                // เมื่อปล่อยเมาส์ (Drop/Cancel)
+                zoneDragula.on('dragend', function() {
+                    isDraggingZone = false;
+                    cancelAnimationFrame(scrollAnimationFrame);
+                });
+                zoneDragula.on('cancel', function() {
+                    isDraggingZone = false;
+                    cancelAnimationFrame(scrollAnimationFrame);
+                });
+
+                // ดักจับตำแหน่งเมาส์ตอนขยับ
+                document.addEventListener('mousemove', function(e) {
+                    if (!isDraggingZone) return;
+
+                    let rect = scrollContainer.getBoundingClientRect();
+                    let threshold = 50; // ระยะห่างจากขอบ (Pixel) ที่จะเริ่มกระตุ้นให้สกอร์ลไหล
+
+                    // ถ้าเมาส์ไปจ่อใกล้ขอบบนของกล่อง
+                    if (e.clientY <= rect.top + threshold && e.clientY >= rect.top) {
+                        scrollSpeed = -8; // ความเร็วเลื่อนขึ้น (ติดลบ)
+                    }
+                    // ถ้าเมาส์ไปจ่อใกล้ขอบล่างของกล่อง
+                    else if (e.clientY >= rect.bottom - threshold && e.clientY <= rect.bottom) {
+                        scrollSpeed = 8; // ความเร็วเลื่อนลง (บวก)
+                    }
+                    // ถ้าอยู่ตรงกลางกล่อง ให้หยุดสกอร์ล
+                    else {
+                        scrollSpeed = 0;
+                    }
+                });
+
+                // ฟังก์ชันสั่งสกอร์ลไหลแบบ Smooth (60fps)
+                function autoScrollLoop() {
+                    if (!isDraggingZone) return;
+                    if (scrollSpeed !== 0) {
+                        scrollContainer.scrollTop += scrollSpeed;
+                    }
+                    scrollAnimationFrame = requestAnimationFrame(autoScrollLoop);
+                }
+                // --- จบโค้ด Auto-Scroll ---
+            }
+
+            $('#btn-save-zone-order').on('click', function() {
+                let orderedIds = [];
+                $('#zone-sortable-list .list-group-item').each(function() {
+                    orderedIds.push($(this).data('id'));
+                });
+
+                $.blockUI({
+                    message: 'กำลังอัปเดตเส้นทาง...'
+                });
+
+                $.ajax({
+                    url: 'pages/zone/function/save-order.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        action: 'save_order',
+                        ordered_ids: orderedIds
+                    }),
+                    success: function(res) {
+                        if (typeof res === 'string') res = JSON.parse(res);
+                        if (res.status === 'success') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'บันทึกลำดับเส้นทางเรียบร้อย!',
+                                showConfirmButton: false,
+                                timer: 1500
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Error', 'ไม่สามารถบันทึกได้', 'error');
+                        }
+                    },
+                    complete: function() {
+                        $.unblockUI();
+                    }
+                });
             });
         });
     </script>
